@@ -1478,6 +1478,10 @@
         else { lsSet(key, arr); window.syncToFirebase(key, arr); }
     }
     function removeLessonTypeFromColumnArray(cls, sub, q, dIdx, shortName, groupIdx) {
+        if (!canManageLessonTypesForColumn(cls, sub, q, dIdx, groupIdx)) {
+            alert('Bu ustun yopilgan yoki boshqa ustozga biriktirilgan. Dars turini o‘chirib bo‘lmaydi.');
+            return;
+        }
         let arr = getLessonTypesForColumn(cls, sub, q, dIdx, groupIdx);
         arr = arr.filter(s => s !== shortName);
         setLessonTypesForColumn(cls, sub, q, dIdx, arr, groupIdx);
@@ -3183,6 +3187,10 @@
             alert('Dars turini alohida belgilash uchun avval yuqoridan kerakli guruhni tanlang.');
             return;
         }
+        if (!canManageLessonTypesForColumn(cls, sub, q, dIdx, groupIdx)) {
+            alert('Bu ustun yopilgan yoki boshqa ustozga biriktirilgan. Dars turini o‘zgartirib bo‘lmaydi.');
+            return;
+        }
         const currentArr = getLessonTypesForColumn(cls, sub, q, dIdx, groupIdx);
         let html = '';
         html += `<button onclick="openLessonTypesManager('${jEsc(cls)}','${jEsc(sub)}','${jEsc(q)}',${dIdx},'${jEsc(dateStr)}',${lessonIdx},${groupIdx})">➕ Dars turi qo'shish</button>`;
@@ -3204,11 +3212,46 @@
     };
     function closeLessonContextMenu() { if (contextMenuEl) { contextMenuEl.remove(); contextMenuEl = null; } }
 
+    // Yopilgan yoki boshqa ustozga biriktirilgan guruh/sana ustunida
+    // dars turlarini o'zgartirishga ruxsat berilmaydi.
+    function canManageLessonTypesForColumn(cls, sub, q, dIdx, groupIdx) {
+        const locks = (lsGet('lock_settings', {}) || {})[cls] || {};
+        if (lockTrue(locks.dates?.[sub]?.[q]?.[dIdx])) return false;
+
+        const gi = Number(groupIdx);
+        const groups = lsGet(`groups_${cls}_${sub}`, []) || [];
+        const dt = lsGet('date_teachers', {}) || {};
+
+        if (Number.isInteger(gi) && gi >= 0) {
+            const group = groups[gi];
+            if (!group) return false;
+            if (group.teacher && !checkAccess(group.teacher)) return false;
+
+            // Guruh/sana uchun umumiy yoki dars turi kesimidagi biriktirishlar.
+            const generic = dt[groupDateTeacherKey(cls, sub, q, dIdx, gi)] || '';
+            if (generic && !checkAccess(generic)) return false;
+
+            const types = getLessonTypesForColumn(cls, sub, q, dIdx, gi);
+            for (const type of types) {
+                const specific = dt[groupDateTeacherKey(cls, sub, q, dIdx, gi, type)] || '';
+                if (specific && !checkAccess(specific)) return false;
+            }
+        } else {
+            const assigned = dt[`${cls}_${sub}_${q}_d_${dIdx}`] || '';
+            if (assigned && !checkAccess(assigned)) return false;
+        }
+        return true;
+    }
+
     window.openLessonTypesManager = function(cls, sub, q, dIdx, dateStr, lessonIdx, groupIdx) {
         closeLessonContextMenu();
         const lessonTypes = getLessonTypes();
         if (lessonTypes.length === 0) { alert("Avval admin panelda dars turlarini qo'shing!"); return; }
         groupIdx = Number.isInteger(Number(groupIdx)) ? Number(groupIdx) : -1;
+        if (!canManageLessonTypesForColumn(cls, sub, q, dIdx, groupIdx)) {
+            alert('Bu ustun yopilgan yoki boshqa ustozga biriktirilgan. Dars turini o‘zgartirib bo‘lmaydi.');
+            return;
+        }
         if (groupIdx < 0 && (lsGet(`groups_${cls}_${sub}`, []) || []).length) {
             alert('Dars turini har bir guruhga alohida belgilash uchun yuqoridan guruhni tanlang.');
             return;
@@ -3240,6 +3283,11 @@
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     };
     window.confirmLessonTypesManager = function(cls, sub, q, dIdx, groupIdx) {
+        if (!canManageLessonTypesForColumn(cls, sub, q, dIdx, groupIdx)) {
+            document.getElementById('lt-manager-modal')?.remove();
+            alert('Bu ustun yopilgan yoki boshqa ustozga biriktirilgan. O‘zgarish saqlanmadi.');
+            return;
+        }
         const checkboxes = document.querySelectorAll('#lt-checkbox-list input[type="checkbox"]');
         const selected = [];
         checkboxes.forEach(cb => { if (cb.checked) selected.push(cb.value); });
@@ -3340,7 +3388,7 @@
             if (col.firstOfDate) {
                 headerInner = `<span>${hEsc(col.d.date)}</span>
                     ${badge ? `<div class="lt-tags">${badge}</div>` : ''}
-                    <button class="lt-add-btn" onclick="openLessonTypesManager('${jEsc(cls)}','${jEsc(sub)}','${jEsc(activeQuarter)}',${col.dIdx},'${hEsc(col.d.date)}',${col.d.instance},${selectedGroupIdx})">+ Tur</button>`;
+                    ${canManageLessonTypesForColumn(cls,sub,activeQuarter,col.dIdx,selectedGroupIdx) ? `<button class="lt-add-btn" onclick="openLessonTypesManager('${jEsc(cls)}','${jEsc(sub)}','${jEsc(activeQuarter)}',${col.dIdx},'${hEsc(col.d.date)}',${col.d.instance},${selectedGroupIdx})">+ Tur</button>` : ''}`;
             } else {
                 headerInner = `<span style="font-size:10px; color:#94a3b8;">${hEsc(col.d.date)}</span>
                     ${badge ? `<div class="lt-tags">${badge}</div>` : ''}`;
