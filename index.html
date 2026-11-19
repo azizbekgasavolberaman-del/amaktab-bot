@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title id="site-title">Journal</title>
+<title id="site-title">aMaktab</title>
 
 <!-- Excel va Word kutubxonalari -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -252,6 +252,11 @@
     .login-tab-btn { padding: 12px 26px; border-radius: 10px; cursor: pointer; background: white; font-weight: 700; border: 2px solid #e2e8f0; font-size: 14px; color: #64748b; }
     .login-tab-btn.active { background: var(--p); color: white; border-color: var(--p); box-shadow: 0 4px 12px rgba(67,97,238,0.3); }
     .student-day-card { background: white; border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 3px 12px rgba(0,0,0,0.05); border-left: 5px solid #e2e8f0; }
+    /* Kunlik va haftalik dars jadvalida mavzu hamda uy ishi ko‘rsatilmaydi; batafsil dars oynasi saqlanadi. */
+    .student-day-card .stu-plan-field, .student-day-card .stu-plan-hw, .student-lesson-detail .stu-plan-field, .student-lesson-detail .stu-plan-hw { display: none !important; }
+    .student-weekly-topic { display:block; width:calc(100% - 34px); margin:4px 0 2px 34px; color:#222 !important; background:none !important; border:0 !important; padding:0 !important; font:inherit; font-size:12px; line-height:1.4; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
+    .student-weekly-topic.expanded { white-space:normal; overflow:visible; overflow-wrap:anywhere; text-overflow:clip; color:#222 !important; background:none !important; }
+    .student-lesson-detail .student-topic-plain { color:#222 !important; background:none !important; border:0 !important; padding:0 !important; border-radius:0 !important; font:inherit; font-size:12px; line-height:1.4; }
     .student-day-today { border-left-color: var(--p); background: #f0f4ff; }
     .student-day-header { font-weight: bold; color: var(--p); margin-bottom: 8px; display: flex; justify-content: space-between; font-size: 14px; align-items: center; }
     .student-day-header span { color: #64748b; font-weight: 500; font-size: 12px; }
@@ -416,6 +421,8 @@
     .stu-detail-label { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; margin-bottom: 2px; display: block; }
     .stu-detail-text { font-size: 13px; color: #334155; font-weight: 500; }
     .stu-detail-teacher { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; }
+    .student-lesson-detail .stu-detail-marks { display:flex; gap:5px; flex-wrap:wrap; margin-top:5px; }
+    .student-lesson-detail .stu-mark-badge { display:inline-flex; min-width:24px; min-height:24px; align-items:center; justify-content:center; padding:3px 8px; border-radius:6px; font-size:12px; line-height:1; box-shadow:0 1px 2px rgba(15,23,42,.12); }
     .stu-teacher-avatar { width: 28px; height: 28px; border-radius: 50%; background: #e2e8f0; color: #64748b; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; }
     .stu-teacher-name { font-size: 12px; font-weight: 600; color: #1e293b; }
     .stu-today-nav { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 10px 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #e2e8f0; }
@@ -4293,8 +4300,12 @@
                 const dIdx = dates.findIndex(x => x.date === viewDateStr && x.instance === l.lessonIndex);
                 const time = getShiftedLessonTime(cls, l.name, dIdx);
                 const dtT = lsGet('date_teachers', {});
-                const overrideTeacher = dtT[`${cls}_${l.name}_${myQuarter}_d_${dIdx}`];
                 const studentGroup = getStudentGroupForSubject(cls, l.name, name);
+                const groupIdxForTeacher = studentGroup && studentGroup.index >= 0 ? studentGroup.index : -1;
+                const dateTeacher = dIdx !== -1 ? getDateTeacherForLessonType(dtT, cls, l.name, myQuarter, dIdx, groupIdxForTeacher, null) : '';
+                const subjectInfo = getClassSubjectsRaw(cls).find(x => x.name === l.name) || {};
+                const displayTeacher = dateTeacher || (studentGroup && studentGroup.teacher) || l.teacher || subjectInfo.teacher || '';
+                const teacherInitial = displayTeacher.trim().charAt(0).toUpperCase();
 
                 const planKey = studentGroup && studentGroup.name
                     ? getGroupPlanKey(myQuarter, cls, l.name, studentGroup.index)
@@ -4331,22 +4342,18 @@
                     });
                 }
 
-                const lessonTypeLabels = (dIdx !== -1 ? getLessonTypesForColumn(cls, l.name, myQuarter, dIdx, studentGroup?.index) : [])
-                    .map(short => getLessonTypes().find(t => t.short === short))
-                    .filter(Boolean);
-                const lessonTypeHtml = lessonTypeLabels.length ? `<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px;">${lessonTypeLabels.map(t => `<span class="lesson-type-badge ${t.primary?'primary':''}" title="${hEsc(t.full)}">${hEsc(t.full || t.short)}</span>`).join('')}</div>` : '';
+                const topicHtml = topic.trim() ? `<div class="student-topic-plain" style="margin-top:5px;">${hEsc(topic.trim())}</div>` : '';
                 dailyHtml += `<div class="student-lesson-detail ${isToday ? 'today' : ''}" onclick="openStudentLessonModal('${jEsc(cls)}','${jEsc(l.name)}','${jEsc(myQuarter)}','${jEsc(viewDateIso)}',${l.lessonIndex})">
                     <div class="stu-detail-header">
                         <div>
                             <div class="stu-detail-time">${hEsc(time.start)} - ${hEsc(time.end)}</div>
+                            <div class="stu-detail-name">${hEsc(l.name)}</div>
                             ${markBadges ? `<div class="stu-detail-marks">${markBadges}</div>` : ''}
-                            <div class="stu-detail-name">${hEsc(l.name)}${studentGroup?.name ? ` · ${hEsc(studentGroup.name)}` : ''}</div>
-                            ${lessonTypeHtml}
+                            ${topicHtml}
                         </div>
                         <span style="font-size:12px; color:#94a3b8; font-weight:bold;">${idx+1}-DARS</span>
                     </div>
-                    ${topic.trim() ? `<div style="color:#475569;font-size:13px;margin-top:7px;white-space:pre-wrap;">📖 <b>Mavzu:</b> ${hEsc(topic)}</div>` : ''}
-                    ${hw.trim() ? `<div style="color:#0f766e;font-size:13px;margin-top:5px;white-space:pre-wrap;">🏠 <b>Uyga vazifa:</b> ${hEsc(hw)}</div>` : ''}
+                    ${displayTeacher ? `<div class="stu-detail-teacher" title="Dars ma’lumotlarini ko‘rish"><div class="stu-teacher-avatar">${hEsc(teacherInitial || 'U')}</div><span class="stu-teacher-name" style="cursor:pointer;text-decoration:underline;text-decoration-color:#cbd5e1;text-underline-offset:3px;" onclick="event.stopPropagation();openStudentLessonModal('${jEsc(cls)}','${jEsc(l.name)}','${jEsc(myQuarter)}','${jEsc(viewDateIso)}',${l.lessonIndex})">${hEsc(displayTeacher)}</span></div>` : ''}
                 </div>`;
             });
         }
@@ -4354,7 +4361,7 @@
         let subjHtml = '';
         if (mySubObjs.length === 0) subjHtml = '<p style="color:#94a3b8; font-size:13px;">Sizga fanlar biriktirilmagan.</p>';
         else mySubObjs.forEach(s => {
-            subjHtml += `<div class="student-subject-chip">${hEsc(s.name)}${s.studentGroup ? `<small style="color:#0e7490;"> · ${hEsc(s.studentGroup)}</small>` : ''}<span class="tch">${hEsc(s.studentGroupTeacher || s.teacher || '—')}</span></div>`;
+            subjHtml += `<div class="student-subject-chip">${hEsc(s.name)}<span class="tch">${hEsc(s.studentGroupTeacher || s.teacher || '—')}</span></div>`;
         });
 
         const dow = viewDate.getDay();
@@ -4407,9 +4414,9 @@
                     });
                 }
                 const weeklyGroupInfo = getStudentGroupForSubject(cls, l.name, name);
-                const weeklyTypes = dIdx !== -1 ? getLessonTypesForColumn(cls, l.name, myQuarter, dIdx, weeklyGroupInfo?.index) : [];
-                const weeklyTypeHtml = weeklyTypes.map(short => getLessonTypes().find(t => t.short === short)).filter(Boolean)
-                    .map(t => `<span class="lesson-type-badge ${t.primary?'primary':''}" title="${hEsc(t.full)}">${hEsc(t.full || t.short)}</span>`).join('');
+                const weeklyDateTeacher = dIdx !== -1 ? getDateTeacherForLessonType(lsGet('date_teachers', {}), cls, l.name, myQuarter, dIdx, weeklyGroupInfo && weeklyGroupInfo.index >= 0 ? weeklyGroupInfo.index : -1, null) : '';
+                const weeklySubjectInfo = getClassSubjectsRaw(cls).find(x => x.name === l.name) || {};
+                const weeklyDisplayTeacher = weeklyDateTeacher || (weeklyGroupInfo && weeklyGroupInfo.teacher) || l.teacher || weeklySubjectInfo.teacher || '';
                 const weeklyPlanKey = weeklyGroupInfo && weeklyGroupInfo.name
                     ? getGroupPlanKey(myQuarter, cls, l.name, weeklyGroupInfo.index)
                     : `plans_${myQuarter}_${cls}_${l.name}`;
@@ -4417,15 +4424,14 @@
                 const weeklyPlan = dIdx !== -1 ? (weeklyPlans[dateKey(dates[dIdx])] || {}) : {};
                 const weeklyTopic = (weeklyPlan.topic || '').trim();
                 const weeklyHw = (weeklyPlan.hw || '').trim();
+                const weeklyTopicHtml = weeklyTopic ? `<span class="student-weekly-topic" title="To‘liq mavzuni ko‘rish uchun bosing" onclick="this.classList.toggle('expanded')">${hEsc(weeklyTopic)}</span>` : '';
                 listHtml += `<div class="student-lesson-row" style="flex-wrap:wrap;">
-                    ${weeklyMarkBadges ? `<span class="stu-detail-marks" style="display:inline-flex;gap:3px;flex-wrap:wrap;width:100%;order:0">${weeklyMarkBadges}</span>` : ''}
                     <span class="lesson-num">${idx+1}</span>
-                    <span class="lesson-name">${hEsc(l.name)}${weeklyGroupInfo?.name ? ` · ${hEsc(weeklyGroupInfo.name)}` : ''}</span>
-                    ${weeklyTypeHtml ? `<span style="display:flex;gap:4px;flex-wrap:wrap;width:100%;margin-left:34px;">${weeklyTypeHtml}</span>` : ''}
-                    ${weeklyTopic ? `<span style="width:100%;margin-left:34px;color:#475569;font-size:12px;white-space:pre-wrap;">📖 Mavzu: ${hEsc(weeklyTopic)}</span>` : ''}
-                    ${weeklyHw ? `<span style="width:100%;margin-left:34px;color:#0f766e;font-size:12px;white-space:pre-wrap;">🏠 Uyga vazifa: ${hEsc(weeklyHw)}</span>` : ''}
+                    <span class="lesson-name">${hEsc(l.name)}</span>
+                    ${weeklyMarkBadges ? `<span class="stu-detail-marks" style="display:inline-flex;gap:3px;flex-wrap:wrap;width:100%;margin-left:34px;order:0">${weeklyMarkBadges}</span>` : ''}
+                    ${weeklyTopicHtml}
                     ${timeTxt}
-                    <span class="lesson-teacher">${hEsc(l.teacher) || ''}</span>
+                    ${weeklyDisplayTeacher ? `<span class="lesson-teacher" style="display:flex;align-items:center;gap:5px;width:100%;margin-left:34px;"><span class="stu-teacher-avatar" style="width:22px;height:22px;font-size:10px;">${hEsc(weeklyDisplayTeacher.trim().charAt(0).toUpperCase() || 'U')}</span><b style="color:#334155;font-weight:600;">${hEsc(weeklyDisplayTeacher)}</b></span>` : ''}
                 </div>`;
             });
             schedHtml += `<div class="student-day-card ${isDayToday?'student-day-today':''}">
@@ -4569,6 +4575,7 @@
 
             <div style="font-size:12px; font-weight:800; color:#1e293b; background:#f1f5f9; padding:8px 12px; border-radius:6px; margin-bottom:10px;">Uy vazifasi darsga</div>
             <div style="font-size:14px; color:#475569; margin-bottom:15px;">${hw ? hEsc(hw) : '<span style="color:#94a3b8; font-style:italic;">Kiritilmagan</span>'}</div>
+            ${(getDateTeacherForLessonType(dtT, cls, sub, q, dIdx, studentGroup && studentGroup.index >= 0 ? studentGroup.index : -1, null) || (studentGroup && studentGroup.teacher) || (subObj && subObj.teacher)) ? `<div class="stu-detail-teacher" style="margin:4px 0 12px;padding:0;border:0;"><div class="stu-teacher-avatar">${hEsc(((getDateTeacherForLessonType(dtT, cls, sub, q, dIdx, studentGroup && studentGroup.index >= 0 ? studentGroup.index : -1, null) || (studentGroup && studentGroup.teacher) || (subObj && subObj.teacher) || '').trim().charAt(0).toUpperCase() || 'U'))}</div><span class="stu-teacher-name">${hEsc(getDateTeacherForLessonType(dtT, cls, sub, q, dIdx, studentGroup && studentGroup.index >= 0 ? studentGroup.index : -1, null) || (studentGroup && studentGroup.teacher) || (subObj && subObj.teacher) || '')}</span></div>` : ''}
 
             <div style="margin-top:20px; padding-top:15px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end;">
                 <button class="tab-btn" style="background:#f1f5f9; color:#64748b; font-weight:bold; padding:10px 20px; border-radius:8px;" onclick="closeStudentLessonModal()">Yopish</button>
