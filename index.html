@@ -1807,7 +1807,7 @@
         const d = document.getElementById('date-display');
         if (di && d) {
             const v = di.value;
-            if (v) { const dt = new Date(v); d.textContent = `📅 ${dt.toLocaleDateString('uz-UZ', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}`; }
+            if (v) { const dt = new Date(v + 'T00:00:00'); d.textContent = `📅 ${dt.toLocaleDateString('uz-UZ', { weekday:'long', year:'numeric', month:'long', day:'numeric' })}`; }
             else d.textContent = '📅 ';
         }
     }
@@ -1844,7 +1844,7 @@
         document.getElementById('t-welcome').innerText = "👨‍🏫 " + teacher;
         window.reloadClassSelects();
         if (localStorage.getItem('last_selected_date')) document.getElementById('date-pick').value = localStorage.getItem('last_selected_date');
-        else document.getElementById('date-pick').valueAsDate = new Date();
+        else document.getElementById('date-pick').value = isoOfDate(new Date());
         updateDateDisplay();
         const last = localStorage.getItem('last_class');
         const sel = document.getElementById('c-select');
@@ -5231,7 +5231,7 @@
     function changeDay(delta) {
         const inp = document.getElementById('date-pick');
         if (!inp) return;
-        const cur = inp.value ? new Date(inp.value) : new Date();
+        const cur = inp.value ? new Date(inp.value + 'T00:00:00') : new Date();
         cur.setDate(cur.getDate() + delta);
         inp.value = isoOfDate(cur);
         render();
