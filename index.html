@@ -65,10 +65,19 @@
         Object.keys(data).forEach(k => {
             if (k.startsWith('marks_')) {
                 const remote = data[k];
-                const local = window.__marksCache[k];
+                // Baholar avval qurilmadagi doimiy xotiradan tekshiriladi:
+                // Firebase eski nusxani yuborsa, yangi mahalliy baho ustidan yozilmaydi.
+                const cached = window.__marksCache[k];
+                const stored = getLSmod(k);
+                const local = (cached && Number(cached.__ts || 0) >= Number((stored || {}).__ts || 0)) ? cached : stored;
                 const rTs = (remote && typeof remote === 'object') ? Number(remote.__ts || 0) : 0;
                 const lTs = (local && typeof local === 'object') ? Number(local.__ts || 0) : 0;
-                if (rTs >= lTs) window.__marksCache[k] = remote;
+                if (rTs >= lTs) {
+                    window.__marksCache[k] = remote;
+                    setLS(k, remote);
+                } else if (local && typeof local === 'object') {
+                    window.__marksCache[k] = local;
+                }
             } else {
                 if (acceptRemote(k, data[k])) setLS(k, data[k]);
             }
@@ -428,6 +437,27 @@
     .stu-today-nav { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 10px 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #e2e8f0; }
     .stu-today-nav button { background: none; border: none; font-size: 20px; cursor: pointer; color: #4361ee; font-weight: bold; }
     .stu-today-nav span { font-size: 14px; font-weight: 700; color: #1e293b; }
+
+
+    /* O'quvchi bosh menyusidagi so'nggi baholar — gorizontal lenta */
+    .stu-latest-wrap { margin: 0 -16px 16px; padding: 0 16px 14px; border-bottom: 1px solid #d8dee5; }
+    .stu-latest-title { font-size:16px; font-weight:700; color:#111827; margin:2px 0 8px; }
+    .stu-latest-scroll { display:flex; align-items:flex-start; gap:9px; overflow-x:auto; overflow-y:hidden; padding:2px 2px 8px; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
+    .stu-latest-day { color:#8b949e; font-size:10px; font-weight:700; letter-spacing:.3px; margin:0 0 4px; }
+    .stu-latest-group { flex:0 0 126px; min-width:126px; display:flex; flex-direction:column; gap:0; }
+    .stu-latest-card { flex:0 0 126px; min-width:126px; overflow:hidden; color:#111; scroll-snap-align:start; display:flex; flex-direction:column; gap:5px; }
+    .stu-latest-posted { min-height:14px; font-size:9px; line-height:1.3; color:#92999f; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .stu-latest-gradebox { height:66px; width:100%; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#fff; overflow:hidden; }
+    .stu-latest-grade { text-align:center; font-family:Roboto, Arial, sans-serif; font-size:38px; line-height:1; font-weight:400; color:#fff; padding:0; }
+    .stu-latest-bottom { font-size:10px; line-height:1.3; color:#92999f; font-weight:400; overflow-wrap:anywhere; }
+    .stu-latest-bottom b { display:block; font-size:12px; line-height:1.2; color:#111; font-weight:600; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .stu-latest-empty { color:#8b949e; font-size:12px; padding:10px 0; }
+    @media(max-width:640px) {
+      .stu-latest-group { flex-basis:120px; min-width:120px; }
+      .stu-latest-card { flex-basis:120px; min-width:120px; }
+      .stu-latest-gradebox { height:62px; }
+      .stu-latest-grade { font-size:36px; }
+    }
 
     @media (max-width: 640px) {
         .head { padding: 10px; }
@@ -1301,6 +1331,8 @@
         o.__ts = Date.now();
         const key = markKey(q, cls, sub);
         window.__marksCache[key] = o;
+        // Sahifa almashtirilsa yoki sayt qayta ochilsa ham baholar saqlanib qoladi.
+        lsSet(key, o);
         window.syncToFirebase(key, o);
         showSaved();
     }
@@ -3563,21 +3595,41 @@
         const isSpecialCode = code => !!code && specialCodes.some(t => String(t.short).toUpperCase() === String(code).toUpperCase());
         const currentKey = baseKey + (ltShort ? '__lt_' + ltShort : '');
         const oldVal = row[currentKey] || '';
+        if (!row.__meta || typeof row.__meta !== 'object') row.__meta = {};
+        const savedAt = Date.now();
 
         // DQ/KQ/K/S kabi ro'yxatda ta'rifi bor belgilar bitta kiritilganda
         // shu sanadagi barcha dars-turi ustunlariga bir xil tarqatiladi.
         // Belgini tahrirlash yoki o'chirish ham barcha ustunlarda bir vaqtda bajariladi.
         if (isSpecialCode(v)) {
-            typeArr.forEach(code => { row[baseKey + '__lt_' + code] = v; });
-            if (!typeArr.length) row[baseKey] = v;
+            typeArr.forEach(code => {
+                const mk = baseKey + '__lt_' + code;
+                row[mk] = v;
+                row.__meta[mk] = { savedAt };
+            });
+            if (!typeArr.length) {
+                row[baseKey] = v;
+                row.__meta[baseKey] = { savedAt };
+            }
         } else {
             if (isSpecialCode(oldVal)) {
-                typeArr.forEach(code => { delete row[baseKey + '__lt_' + code]; });
+                typeArr.forEach(code => {
+                    const mk = baseKey + '__lt_' + code;
+                    delete row[mk];
+                    delete row.__meta[mk];
+                });
                 delete row[baseKey];
+                delete row.__meta[baseKey];
             }
-            if (v) row[currentKey] = v; else delete row[currentKey];
+            if (v) {
+                row[currentKey] = v;
+                row.__meta[currentKey] = { savedAt };
+            } else {
+                delete row[currentKey];
+                delete row.__meta[currentKey];
+            }
         }
-        if (Object.keys(row).length === 0) delete m[studentKey];
+        if (Object.keys(row).filter(k => k !== '__meta').length === 0) delete m[studentKey];
         saveMarksObj(q, cls, sub, m); render();
     };
     window.saveMQ = function(q, cls, sub, studentKey, val) {
@@ -3585,15 +3637,24 @@
         const m = getMarks(q, cls, sub);
         if (!m[studentKey]) m[studentKey] = {};
         const v = (val||'').toUpperCase().trim();
-        if (v) m[studentKey]['__quarter'] = v; else delete m[studentKey]['__quarter'];
-        if (Object.keys(m[studentKey]).length === 0) delete m[studentKey];
+        if (!m[studentKey].__meta || typeof m[studentKey].__meta !== 'object') m[studentKey].__meta = {};
+        if (v) {
+            m[studentKey]['__quarter'] = v;
+            m[studentKey].__meta.__quarter = {savedAt:Date.now()};
+        } else {
+            delete m[studentKey]['__quarter'];
+            delete m[studentKey].__meta.__quarter;
+        }
+        if (Object.keys(m[studentKey]).filter(k => k !== '__meta').length === 0) delete m[studentKey];
         saveMarksObj(q, cls, sub, m); render();
     };
     window.saveExtra = function(cls, sub, type, studentKey, val) {
         const key = `marks_${type}_${cls}_${sub}`;
         const m = getMarksByKey(key);
         const v = (val||'').toUpperCase().trim();
-        if (v) m[studentKey] = v; else delete m[studentKey];
+        if (!m.__meta || typeof m.__meta !== 'object') m.__meta = {};
+        if (v) { m[studentKey] = v; m.__meta[studentKey] = {savedAt:Date.now()}; }
+        else { delete m[studentKey]; delete m.__meta[studentKey]; }
         m.__ts = Date.now();
         window.__marksCache[key] = m;
         window.syncToFirebase(key, m);
@@ -3602,7 +3663,9 @@
     window.saveY = function(k, studentKey, val) {
         const m = getMarksByKey(k);
         const v = (val||'').toUpperCase().trim();
-        if (v) m[studentKey] = v; else delete m[studentKey];
+        if (!m.__meta || typeof m.__meta !== 'object') m.__meta = {};
+        if (v) { m[studentKey] = v; m.__meta[studentKey] = {savedAt:Date.now()}; }
+        else { delete m[studentKey]; delete m.__meta[studentKey]; }
         m.__ts = Date.now();
         window.__marksCache[k] = m;
         window.syncToFirebase(k, m);
@@ -4486,6 +4549,106 @@
         });
     }
 
+
+    function renderStudentLatestMarks(cls, name, subjects) {
+        const studentKey = getStudentKeyByName(cls, name);
+        const allMarks = [];
+        const quarters = getQuarters().filter(q => q.visible !== false);
+        const addItem = (item) => {
+            if (item.value === undefined || item.value === null || String(item.value).trim() === '') return;
+            allMarks.push(item);
+        };
+        (subjects || []).forEach(subject => {
+            const groupIdx = Number.isInteger(subject.groupIndex) ? subject.groupIndex : -1;
+            quarters.forEach(q => {
+                const dates = generateDates(cls, subject.name, q.id, groupIdx);
+                const allRows = getMarks(q.id, cls, subject.name) || {};
+                const row = allRows[studentKey] || {};
+                const meta = row.__meta || {};
+                dates.forEach((d, idx) => {
+                    const base = dateKey(d);
+                    if (row[base]) {
+                        addItem({subject:subject.name,value:row[base],purpose:'Dars bahosi',
+                            lessonDate:d.date,savedAt:Number(meta[base]?.savedAt || row.__ts || 0),
+                            quarter:q.btn || q.id});
+                    }
+                    const ltArr = getLessonTypesForColumn(cls, subject.name, q.id, idx, groupIdx);
+                    ltArr.forEach(short => {
+                        const key = `${base}__lt_${short}`;
+                        if (!row[key]) return;
+                        const lt = getLessonTypes().find(x => String(x.short) === String(short));
+                        const codeObj = getMarkCodes().find(t => String(t.short).toUpperCase() === String(row[key]).toUpperCase());
+                        addItem({subject:subject.name,value:row[key],
+                            purpose:codeObj ? codeObj.full : (lt ? lt.full : short),
+                            lessonDate:d.date,savedAt:Number(meta[key]?.savedAt || row.__ts || 0),
+                            quarter:q.btn || q.id});
+                    });
+                });
+                if (row.__quarter) {
+                    addItem({subject:subject.name,value:row.__quarter,purpose:'Choraklik baho',
+                        lessonDate:'Chorak yakuni',savedAt:Number(meta.__quarter?.savedAt || row.__ts || 0),
+                        quarter:q.btn || q.id});
+                }
+            });
+
+            ['Imtihon','Natija','Annual'].forEach(type => {
+                const key = `marks_${type}_${cls}_${subject.name}`;
+                const data = getMarksByKey(key) || {};
+                const value = data[studentKey];
+                if (!value) return;
+                const meta = data.__meta || {};
+                const labels = {Imtihon:'Imtihon bahosi',Natija:'Yakuniy natija',Annual:'Yillik baho'};
+                addItem({subject:subject.name,value,purpose:labels[type],
+                    lessonDate:'',savedAt:Number(meta[studentKey]?.savedAt || data.__ts || 0),
+                    quarter:type === 'Annual' ? 'Yillik' : 'Umumiy'});
+            });
+
+            // Hisobotdagi yarim yillik natija 1- va 2-chorak baholaridan hisoblanadi.
+            if (quarters.length >= 2) {
+                const q1row = (getMarks(quarters[0].id,cls,subject.name)[studentKey] || {});
+                const q2row = (getMarks(quarters[1].id,cls,subject.name)[studentKey] || {});
+                const q1 = q1row.__quarter, q2 = q2row.__quarter;
+                if (q1 && q2 && !isNaN(q1) && !isNaN(q2)) {
+                    const t1 = Number(q1row.__meta?.__quarter?.savedAt || q1row.__ts || 0);
+                    const t2 = Number(q2row.__meta?.__quarter?.savedAt || q2row.__ts || 0);
+                    addItem({subject:subject.name,value:((parseFloat(q1)+parseFloat(q2))/2).toFixed(1),
+                        purpose:'Yarim yillik baho',lessonDate:'',savedAt:Math.max(t1,t2),quarter:'Yarim yillik'});
+                }
+            }
+        });
+        allMarks.sort((a,b) => (b.savedAt || 0) - (a.savedAt || 0));
+        const recent = allMarks.slice(0,20);
+        if (!recent.length) return `<section class="stu-latest-wrap"><div class="stu-latest-title">So'nggi baholar</div><div class="stu-latest-empty">Hozircha baholar qo'yilmagan.</div></section>`;
+        const today = isoOfDate(new Date());
+        const yesterdayDate = new Date(); yesterdayDate.setDate(yesterdayDate.getDate()-1);
+        const yesterday = isoOfDate(yesterdayDate);
+        let previousGroup = '';
+        const cards = recent.map(item => {
+            const stamp = item.savedAt ? new Date(item.savedAt) : null;
+            const day = stamp && !isNaN(stamp.getTime()) ? isoOfDate(stamp) : '';
+            const group = day === today ? 'BUGUN' : day === yesterday ? 'KECHA' :
+                (stamp ? stamp.toLocaleDateString('uz-UZ',{day:'2-digit',month:'long'}) : 'Sana noma’lum');
+            const heading = group !== previousGroup ? `<div class="stu-latest-day">${hEsc(group)}</div>` : '';
+            previousGroup = group;
+            const posted = stamp && !isNaN(stamp.getTime())
+                ? stamp.toLocaleString('uz-UZ',{hour:'2-digit',minute:'2-digit'}) : 'Vaqti saqlanmagan';
+            const lessonDate = item.lessonDate ? `Dars sanasi: ${item.lessonDate}` : (stamp ? `Sana: ${stamp.toLocaleDateString('uz-UZ')}` : '');
+            return `<div class="stu-latest-group">${heading}<article class="stu-latest-card">
+                <div class="stu-latest-posted">${hEsc(posted)}</div>
+                <div class="stu-latest-gradebox" style="background:${gradeColorHex(item.value)}">
+                    <div class="stu-latest-grade">${hEsc(item.value)}</div>
+                </div>
+                <div class="stu-latest-bottom"><b>${hEsc(item.subject)}</b>
+                    ${hEsc(item.purpose)}<br>${hEsc(lessonDate)}<br>${hEsc(item.quarter)}
+                </div>
+            </article></div>`;
+        }).join('');
+        return `<section class="stu-latest-wrap">
+            <div class="stu-latest-title">So'nggi baholar</div>
+            <div class="stu-latest-scroll">${cards}</div>
+        </section>`;
+    }
+
     window.renderStudentView = function() {
         if (!loggedStudent) return;
         const cls = loggedStudent.cls;
@@ -4601,8 +4764,10 @@
                     <div class="stu-detail-header">
                         <div>
                             <div class="stu-detail-time">${hEsc(time.start)} - ${hEsc(time.end)}</div>
-                            <div class="stu-detail-name">${hEsc(l.name)}</div>
-                            ${markBadges ? `<div class="stu-detail-marks">${markBadges}</div>` : ''}
+                            <div class="stu-detail-name-row" style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:2px;">
+                                <div class="stu-detail-name" style="margin-top:0;">${hEsc(l.name)}</div>
+                                ${markBadges ? `<div class="stu-detail-marks" style="display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:0;">${markBadges}</div>` : ''}
+                            </div>
                             ${topicHtml}
                         </div>
                         <span style="font-size:12px; color:#94a3b8; font-weight:bold;">${idx+1}-DARS</span>
@@ -4723,6 +4888,10 @@
         const cls_ = (k) => accState[k] === false ? ' collapsed' : '';
 
         document.getElementById('student-body').innerHTML = `
+            ${renderStudentLatestMarks(cls, name, getClassSubjectsRaw(cls).filter(s => mySubjects.includes(s.name)).map(s => {
+                const latestGroup = getStudentGroupForSubject(cls, s.name, name);
+                return {...s, ...(latestGroup && latestGroup.index >= 0 ? {groupIndex:latestGroup.index} : {})};
+            }))}
             <div class="stu-card stu-collapsible${cls_('daily')}" data-stu-key="daily">
                 <h3>📅 Kunlik dars jadvali</h3>
                 <div class="stu-content">${dailyHtml}</div>
@@ -4798,7 +4967,7 @@
         const val = m[dk];
         if (val) marksHtml += `<div style="display:flex; align-items:center; gap:10px; margin-bottom:5px;"><span class="stu-mark-badge" style="background:${gradeColorHex(val)}; font-size:18px; padding:5px 15px;">${hEsc(val)}</span> <span style="font-size:13px; color:#64748b; font-weight:600;">Dars bahosi</span></div>`;
         
-        const ltArr = getLessonTypesForColumn(cls, sub, q, dIdx);
+        const ltArr = getLessonTypesForColumn(cls, sub, q, dIdx, studentGroup && studentGroup.index >= 0 ? studentGroup.index : -1);
         const shownCodes = new Set();
         ltArr.forEach(ltShort => {
             const ltKey = dk + '__lt_' + ltShort;
@@ -4812,6 +4981,17 @@
                 const visibleText = ltVal;
                 marksHtml += `<div style="display:flex; flex-direction:column; align-items:flex-start; gap:4px; margin-bottom:8px;"><div style="display:flex; align-items:center; gap:10px;"><span class="stu-mark-badge" style="background:${gradeColorHex(ltVal)}; font-size:16px; padding:3px 12px;">${hEsc(visibleText)}</span><span style="font-size:13px;color:#64748b;font-weight:600;">${codeObj ? 'Maxsus belgi' : hEsc(ltLabel)}</span></div>${codeObj ? `<div style="font-size:13px;color:#334155;padding-left:3px;">${hEsc(codeObj.full)}</div>` : ''}</div>`;
             }
+        });
+        const quarterVal = m.__quarter || '';
+        if (quarterVal) marksHtml += `<div style="display:flex;align-items:center;gap:10px;margin:7px 0;"><span class="stu-mark-badge" style="background:${gradeColorHex(quarterVal)};font-size:15px;padding:3px 11px;">${hEsc(quarterVal)}</span><span style="font-size:13px;color:#64748b;font-weight:600;">Choraklik baho</span></div>`;
+        const extraTypes = [
+            {key:`marks_Imtihon_${cls}_${sub}`,label:'Imtihon bahosi'},
+            {key:`marks_Natija_${cls}_${sub}`,label:'Yakuniy natija'},
+            {key:`marks_Annual_${cls}_${sub}`,label:'Yillik baho'}
+        ];
+        extraTypes.forEach(x => {
+            const v = (getMarksByKey(x.key) || {})[skey];
+            if (v) marksHtml += `<div style="display:flex;align-items:center;gap:10px;margin:7px 0;"><span class="stu-mark-badge" style="background:${gradeColorHex(v)};font-size:15px;padding:3px 11px;">${hEsc(v)}</span><span style="font-size:13px;color:#64748b;font-weight:600;">${hEsc(x.label)}</span></div>`;
         });
         if (!marksHtml) marksHtml = '<span style="color:#94a3b8; font-size:13px;">Hali belgilar yo\'q</span>';
 
@@ -5755,10 +5935,56 @@
             });
             h += `</tr>`;
         });
-        document.getElementById('report-area').innerHTML = h + `</tbody></table>`;
+        document.getElementById('report-area').innerHTML = h + `</tbody></table>` + renderTeacherOwnLatestMarks(cls, subjects, 10);
         document.getElementById('report-title').innerText = `${cls}-sinf | Jami`;
         document.getElementById('report-modal').style.display = 'block';
     };
+
+    // Ustozning Jami bo'limida faqat o'z fanlaridagi eng so'nggi 10 ta bahoni alohida ko'rsatish.
+    function renderTeacherOwnLatestMarks(cls, subjects, limit = 10) {
+        const entries = getSortedStudentEntries(cls);
+        const quarters = getQuarters().filter(q => q.visible !== false);
+        const items = [];
+        const push = (x) => { if (x.value !== undefined && x.value !== null && String(x.value).trim() !== '') items.push(x); };
+        (subjects || []).forEach(subject => {
+            const groups = lsGet(`groups_${cls}_${subject.name}`, []) || [];
+            entries.forEach(entry => {
+                const groupInfo = getStudentGroupForSubject(cls, subject.name, entry.name);
+                if (groupInfo && groupInfo.restricted && groupInfo.index < 0) return;
+                const groupIndexes = groupInfo && groupInfo.index >= 0 ? [groupInfo.index] : [-1];
+                groupIndexes.forEach(groupIdx => quarters.forEach(q => {
+                    const dates = generateDates(cls, subject.name, q.id, groupIdx);
+                    const row = (getMarks(q.id, cls, subject.name) || {})[entry.key] || {};
+                    const meta = row.__meta || {};
+                    dates.forEach((d, idx) => {
+                        const base = dateKey(d);
+                        if (row[base]) push({student:entry.name,subject:subject.name,value:row[base],purpose:'Dars bahosi',date:d.date,savedAt:Number(meta[base]?.savedAt || row.__ts || 0)});
+                        getLessonTypesForColumn(cls, subject.name, q.id, idx, groupIdx).forEach(short => {
+                            const key = `${base}__lt_${short}`;
+                            if (!row[key]) return;
+                            const lt = getLessonTypes().find(x => String(x.short) === String(short));
+                            const code = getMarkCodes().find(x => String(x.short).toUpperCase() === String(row[key]).toUpperCase());
+                            push({student:entry.name,subject:subject.name,value:row[key],purpose:code ? code.full : (lt ? lt.full : short),date:d.date,savedAt:Number(meta[key]?.savedAt || row.__ts || 0)});
+                        });
+                    });
+                    if (row.__quarter) push({student:entry.name,subject:subject.name,value:row.__quarter,purpose:'Choraklik baho',date:q.btn || q.id,savedAt:Number(meta.__quarter?.savedAt || row.__ts || 0)});
+                }));
+            });
+            ['Imtihon','Natija','Annual'].forEach(type => {
+                const data = getMarksByKey(`marks_${type}_${cls}_${subject.name}`) || {};
+                const labels = {Imtihon:'Imtihon bahosi',Natija:'Yakuniy natija',Annual:'Yillik baho'};
+                entries.forEach(entry => {
+                    const value = data[entry.key]; if (!value) return;
+                    push({student:entry.name,subject:subject.name,value,purpose:labels[type],date:'',savedAt:Number(data.__meta?.[entry.key]?.savedAt || data.__ts || 0)});
+                });
+            });
+        });
+        items.sort((a,b) => (b.savedAt || 0) - (a.savedAt || 0));
+        const recent = items.slice(0, limit);
+        if (!recent.length) return `<section class="stu-latest-wrap"><div class="stu-latest-title">Mening so'nggi baholarim</div><div class="stu-latest-empty">Hozircha baholar yo'q.</div></section>`;
+        const rows = recent.map((x,i) => `<tr><td>${i+1}</td><td>${hEsc(x.student)}</td><td>${hEsc(x.subject)}</td><td><b>${hEsc(x.value)}</b></td><td>${hEsc(x.purpose)}</td><td>${hEsc(x.date || '—')}</td></tr>`).join('');
+        return `<section class="stu-latest-wrap"><div class="stu-latest-title">Mening so'nggi 10 ta baholarim</div><div style="overflow-x:auto"><table style="min-width:720px;width:100%"><thead><tr><th>№</th><th>O'quvchi</th><th>Fan</th><th>Baho</th><th>Dars turi</th><th>Sana</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+    }
 
     // 5. Sinf rahbari bo'limi: "Mening sinf ko'rsatkichim"
     //    Faqat sinf rahbari va ismi mos kelsa ko'rinadi.
