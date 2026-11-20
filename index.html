@@ -795,6 +795,19 @@
                         </div>
                         <div id="date-teacher-assignments-list" style="margin-top:10px;background:white;border:1px solid #dbeafe;border-radius:7px;padding:8px;width:100%;box-sizing:border-box;"></div>
                     </div>
+                    <div style="margin-top:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:9px;padding:12px;">
+                        <h4 style="margin:0 0 8px;color:#166534;">🗓️ Sinf / fan / guruh uchun alohida dars sanalari</h4>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:8px;">
+                            <label style="font-size:12px;font-weight:700;">Sinf<select id="custom-date-class" class="gi" style="width:100%;height:36px;" onchange="loadCustomDateSubjects()"></select></label>
+                            <label style="font-size:12px;font-weight:700;">Fan<select id="custom-date-subject" class="gi" style="width:100%;height:36px;" onchange="loadCustomDateGroups()"></select></label>
+                            <label style="font-size:12px;font-weight:700;">Chorak<select id="custom-date-quarter" class="gi" style="width:100%;height:36px;" onchange="renderCustomDateList()"></select></label>
+                            <label style="font-size:12px;font-weight:700;">Guruh<select id="custom-date-group" class="gi" style="width:100%;height:36px;" onchange="renderCustomDateList()"></select></label>
+                            <label style="font-size:12px;font-weight:700;">Sana<input id="custom-date-value" type="date" class="gi" style="width:100%;height:36px;"></label>
+                            <label style="font-size:12px;font-weight:700;">Shu kundagi dars №<input id="custom-date-instance" type="number" min="1" value="1" class="gi" style="width:100%;height:36px;"></label>
+                        </div>
+                        <button class="tab-btn" style="width:100%;margin-top:8px;background:#16a34a;color:white;border:0;" onclick="addCustomGroupDate()">➕ Sana qo‘shish</button>
+                        <div id="custom-date-list" style="margin-top:9px;background:white;border:1px solid #dcfce7;border-radius:7px;padding:8px;"></div>
+                    </div>
                     <div style="margin-top:12px; background:white; padding:10px; border-radius:8px;">
                         <h4 style="margin:0 0 5px 0; font-size:13px; color:var(--p);">Fan tartibini almashtirish</h4>
                         <div style="display:flex; gap:10px; align-items:center;">
@@ -863,6 +876,12 @@
                         <div style="flex:1; min-width:300px; background:white; padding:10px; border-radius:8px;">
                             <h4 style="margin:0 0 8px 0; font-size:13px; color:var(--p);">Sana ustozlari</h4>
                             <select id="lock-q-select" class="gi" style="width:120px; height:32px; margin-bottom:8px;" onchange="loadLockDatesList()"></select>
+                            <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin:4px 0 10px;">
+                                <label style="font-size:12px;font-weight:700;">Qaysi sanagacha:</label>
+                                <input type="date" id="lock-until-date" class="gi" style="height:34px;width:150px;">
+                                <button type="button" class="tab-btn" style="background:#ef4444;color:white;border:none;padding:7px 11px;" onclick="applyLockUntilDate()">🔒 Bajarish</button>
+                            </div>
+                            <div id="lock-until-status" style="font-size:11px;color:#64748b;margin-bottom:7px;"></div>
                             <div id="lock-dates-list" style="max-height:160px; overflow-y:auto;"></div>
                         </div>
                     </div>
@@ -1689,7 +1708,7 @@
         sel.innerHTML = "";
         classes.forEach(c => sel.add(new Option(c + "-sinf", c)));
         if (old && classes.includes(old)) sel.value = old;
-        ['admin-class-teacher-select','admin-class-select','move-target-class-select','lock-class-select','swap-class-select','reorder-class-select','acc-class-select','date-edit-class-select','quarter-class-select','bell-class-select','room-class-select', 'move-from-class', 'move-to-class', 'assign-teacher-class'].forEach(id => {
+        ['admin-class-teacher-select','admin-class-select','move-target-class-select','lock-class-select','swap-class-select','reorder-class-select','acc-class-select','date-edit-class-select','quarter-class-select','bell-class-select','room-class-select', 'move-from-class', 'move-to-class', 'assign-teacher-class','custom-date-class'].forEach(id => {
             const s = document.getElementById(id);
             if (s) {
                 const o = s.value;
@@ -1698,6 +1717,8 @@
                 if (o && classes.includes(o)) s.value = o;
             }
         });
+        const cdq=document.getElementById('custom-date-quarter'); if(cdq){const oldq=cdq.value;cdq.innerHTML='';getQuarters().forEach(q=>cdq.add(new Option(getQuarterName(q.id),q.id)));if(oldq&&Array.from(cdq.options).some(o=>o.value===oldq))cdq.value=oldq;else if(Array.from(cdq.options).some(o=>o.value===activeQuarter))cdq.value=activeQuarter;}
+        if(document.getElementById('custom-date-class'))loadCustomDateSubjects();
         if (typeof render === 'function') render();
         if (typeof loadBellSubjectSelect === 'function') loadBellSubjectSelect();
         if (typeof loadRoomSubjectSelect === 'function') loadRoomSubjectSelect();
@@ -3017,15 +3038,47 @@
         const quarter = q || activeQuarter;
         const classSubs = getClassSubjects(cls, quarter);
         const curDay = dt.getDay();
-        let lessons = [];
+        const lessons = [];
         classSubs.forEach(s => {
-            const custom = getCustomDates(cls, s.name, quarter);
-            if (custom && custom.length) {
-                const cnt = custom.filter(c => (c.iso ? c.iso === iso : c.date === dateStr)).length;
-                for (let i = 0; i < cnt; i++) lessons.push({ ...s, lessonIndex: i });
-            } else if (s.days && Array.isArray(s.days)) {
-                const cnt = s.days.filter(d => d === curDay).length;
-                for (let i=0; i<cnt; i++) lessons.push({ ...s, lessonIndex: i });
+            const groups = lsGet(`groups_${cls}_${s.name}`, []) || [];
+            if (groups.length) {
+                // Guruhli fan uchun umumiy va har bir guruhga alohida qo'shilgan
+                // sanalarning birlashmasi kunlik/haftalik jadvalda dars sifatida chiqadi.
+                const seenInstances = new Set();
+                groups.forEach((g, gi) => {
+                    const dates = generateDates(cls, s.name, quarter, gi);
+                    dates.forEach(d => {
+                        const matches = (d.iso ? d.iso === iso : d.date === dateStr);
+                        if (!matches) return;
+                        const instance = Number(d.instance) || 0;
+                        const key = `${iso}_${instance}`;
+                        if (!seenInstances.has(key)) {
+                            seenInstances.add(key);
+                            lessons.push({ ...s, lessonIndex: instance });
+                        }
+                    });
+                });
+                // Asosiy sinf-fanga umumiy sana kiritilgan bo'lsa ham,
+                // u guruhli fanning barcha guruhlarida ko'rinadi.
+                if (!groups.length) {
+                    const baseDates = generateDates(cls, s.name, quarter, -1);
+                    baseDates.forEach(d => {
+                        if ((d.iso ? d.iso === iso : d.date === dateStr) && !seenInstances.has(`${iso}_${Number(d.instance)||0}`)) {
+                            const instance = Number(d.instance) || 0;
+                            seenInstances.add(`${iso}_${instance}`);
+                            lessons.push({ ...s, lessonIndex: instance });
+                        }
+                    });
+                }
+            } else {
+                const custom = getCustomDates(cls, s.name, quarter);
+                if (custom && custom.length) {
+                    const cnt = custom.filter(c => (c.iso ? c.iso === iso : c.date === dateStr)).length;
+                    for (let i = 0; i < cnt; i++) lessons.push({ ...s, lessonIndex: i });
+                } else if (s.days && Array.isArray(s.days)) {
+                    const cnt = s.days.filter(d => d === curDay).length;
+                    for (let i=0; i<cnt; i++) lessons.push({ ...s, lessonIndex: i });
+                }
             }
         });
         return lessons;
@@ -3058,19 +3111,17 @@
         const isToday = (`${dt.getDate()}-${mon[dt.getMonth()]}` === getTodayStr());
         const columns = [];
         lessons.forEach(l => {
-            const dates = generateDates(cls, l.name, qForDate);
-            const dIdx = dates.findIndex(d => d.date === dateStr && d.instance === l.lessonIndex);
-            // Har bir fan o'z guruhlariga qarab chiqariladi.
-            // Guruhlanmagan fan bitta umumiy ustun bo'lib qoladi.
-            // Kunlik/haftalik umumiy jadvalda faqat tanlangan guruhli fan
-            // guruhlarga ajratiladi. Boshqa fanlar bitta umumiy ustun bo'lib qoladi.
-            const isSelectedGroupedSubject = l.name === selectedSubject;
-            const subjectGroups = isSelectedGroupedSubject ? (allGroups || []) : [];
+            const subjectGroups = lsGet(`groups_${cls}_${l.name}`, []) || [];
             const groupsForSubject = subjectGroups.length
                 ? subjectGroups.map((g, gi) => ({ group: g, groupIdx: gi, groupName: g.name || ('Guruh ' + (gi + 1)) }))
                 : [{ group: null, groupIdx: -1, groupName: '' }];
             groupsForSubject.forEach(({group, groupIdx, groupName}) => {
-                const types = dIdx >= 0 ? getLessonTypesForColumn(cls, l.name, qForDate, dIdx, groupIdx) : [];
+                const dates = generateDates(cls, l.name, qForDate, groupIdx);
+                const dIdx = dates.findIndex(d => (d.iso ? d.iso === isoOfDate(dt) : d.date === dateStr) && Number(d.instance) === Number(l.lessonIndex));
+                // Har bir guruhning sanasi faqat o'sha guruh ustuniga tushadi.
+                // Guruhsiz fan esa bitta umumiy ustun bo'lib qoladi.
+                if (dIdx < 0) return;
+                const types = getLessonTypesForColumn(cls, l.name, qForDate, dIdx, groupIdx);
                 (types.length ? types : [null]).forEach((ltShort, ti) => columns.push({
                     l, dates, dIdx, ltShort, groupIdx, groupName, first: ti === 0,
                     grouped: !!group, groupStudents: group?.students || []
@@ -3105,7 +3156,7 @@
                     : (dtT[`${cls}_${col.l.name}_${qForDate}_d_${col.dIdx}`] || '');
                 const hasA = st ? checkAccess(st) : isAllowedForStudent(cls, col.l.name, col.l, entry.name);
                 const ro = !hasA || dLocked || cellLocked;
-                h += `<td class="${isToday?'is-today-cell':''}"><input type="text" class="gi ${val?'has-value':''} ${ro?'locked':''}" style="${ro?'':getGradeStyle(val)}" value="${hEsc(val)}" ${ro?'disabled':''} onchange="saveM('${jEsc(qForDate)}','${jEsc(cls)}','${jEsc(col.l.name)}','${jEsc(entry.key)}',${col.dIdx},this.value${col.ltShort?`, '${jEsc(col.ltShort)}'`:''})"></td>`;
+                h += `<td class="${isToday?'is-today-cell':''}"><input type="text" class="gi ${val?'has-value':''} ${ro?'locked':''}" style="${ro?'':getGradeStyle(val)}" value="${hEsc(val)}" ${ro?'disabled':''} onchange="saveM('${jEsc(qForDate)}','${jEsc(cls)}','${jEsc(col.l.name)}','${jEsc(entry.key)}',${col.dIdx},this.value${col.ltShort?`, '${jEsc(col.ltShort)}'`:''},${col.groupIdx})"></td>`;
             });
             h += `</tr>`;
         });
@@ -3122,14 +3173,17 @@
         const quarterList = getQuarters();
         const dateQuarter = quarterList.find(q => q.start && q.end && isoDate >= q.start && isoDate <= q.end);
         const qForDate = dateQuarter ? dateQuarter.id : activeQuarter;
-        const allGroups = lsGet(`groups_${cls}_${document.getElementById('s-select').value}`, []) || [];
+        const selectedSubjectGroups = lsGet(`groups_${cls}_${document.getElementById('s-select').value}`, []) || [];
+        const hasAnyGroupedSubjects = getClassSubjects(cls, qForDate).some(subject =>
+            (lsGet(`groups_${cls}_${subject.name}`, []) || []).length > 0
+        );
         const groupIsExplicit = groupOverride !== undefined && groupOverride !== null;
         const selectedGroupRaw = groupIsExplicit ? String(groupOverride) : (document.getElementById('g-select')?.value ?? 'all');
         const selectedGroupIdx = selectedGroupRaw !== 'all' && selectedGroupRaw !== '' ? Number(selectedGroupRaw) : -1;
-        // Umumiy ko'rinish: barcha guruhlar va o'quvchilar bitta jadvalda,
-        // guruh nomi esa tegishli sana ustunining tepasida yoziladi.
-        if (!groupIsExplicit && selectedGroupIdx < 0 && allGroups.length) {
-            return renderDailyAllGroups(cls, dateValStr, dt, dateStr, qForDate, allGroups, document.getElementById('s-select').value);
+        // Umumiy kunlik/haftalik ko'rinishda tanlangan fan guruhli bo'lmasa ham,
+        // sinfdagi barcha guruhli fanlar o'z guruhlari bo'yicha alohida chiqadi.
+        if (!groupIsExplicit && selectedGroupIdx < 0 && hasAnyGroupedSubjects) {
+            return renderDailyAllGroups(cls, dateValStr, dt, dateStr, qForDate, selectedSubjectGroups, document.getElementById('s-select').value);
         }
         const entries = getSortedStudentEntries(cls, false, selectedGroupIdx >= 0 ? selectedGroupIdx : undefined);
         const locks = lsGet('lock_settings', {})[cls] || {};
@@ -3137,11 +3191,13 @@
         const lessons = getLessonsForDate(cls, dateValStr, qForDate);
         const lessonTypes = getLessonTypes();
         const lessonInfo = lessons.map(l => {
-            const dates = generateDates(cls, l.name, qForDate);
-            const dIdx = dates.findIndex(d => d.date === dateStr && d.instance === l.lessonIndex);
-            const ltArr = dIdx >= 0 ? getLessonTypesForColumn(cls, l.name, qForDate, dIdx, selectedGroupIdx) : [];
-            return { l, dates, dIdx, ltArr };
-        });
+            const subjectGroups = lsGet(`groups_${cls}_${l.name}`, []) || [];
+            const useGroupIdx = subjectGroups.length ? selectedGroupIdx : -1;
+            const dates = generateDates(cls, l.name, qForDate, useGroupIdx);
+            const dIdx = dates.findIndex(d => (d.iso ? d.iso === isoDate : d.date === dateStr) && Number(d.instance) === Number(l.lessonIndex));
+            const ltArr = dIdx >= 0 ? getLessonTypesForColumn(cls, l.name, qForDate, dIdx, useGroupIdx) : [];
+            return { l, dates, dIdx, ltArr, useGroupIdx };
+        }).filter(info => info.dIdx >= 0);
 
         // Har bir choraklik dars turi kunlik/haftalik jadvalda ham mustaqil ustun bo'ladi.
         const lessonColumns = [];
@@ -3152,13 +3208,13 @@
 
         let h = `<table><thead><tr><th>№</th><th class="s-name">O'quvchi</th>`;
         lessonColumns.forEach((col, num) => {
-            const {l, dIdx, ltShort, typeIndex} = col;
+            const {l, dIdx, ltShort, typeIndex, useGroupIdx} = col;
             const ltObj = ltShort ? lessonTypes.find(t => t.short === ltShort) : null;
             const ltTag = ltObj ? `<div class="lt-tags"><span class="lt-tag ${ltObj.primary?'primary':''}">${hEsc(ltObj.short)}</span></div>` : '';
             h += `<th class="${isToday?'is-today-cell':''}">
                 <div style="display:flex; align-items:center; gap:4px; justify-content:center;">
                     <span>${hEsc(l.name)}</span>
-                    ${typeIndex === 0 ? `<span class="lesson-menu-btn" onclick="openLessonContextMenu(event, '${jEsc(cls)}','${jEsc(l.name)}','${jEsc(qForDate)}',${dIdx},'${jEsc(dateStr)}',${l.lessonIndex},${selectedGroupIdx})">⋮</span>` : ''}
+                    ${typeIndex === 0 ? `<span class="lesson-menu-btn" onclick="openLessonContextMenu(event, '${jEsc(cls)}','${jEsc(l.name)}','${jEsc(qForDate)}',${dIdx},'${jEsc(dateStr)}',${l.lessonIndex},${useGroupIdx})">⋮</span>` : ''}
                 </div>
                 ${ltTag}
             </th>`;
@@ -3184,7 +3240,7 @@
                 const styleAttr = ro ? '' : getGradeStyle(val);
                 const hv = val ? 'has-value' : '';
                 const ltArg = ltShort ? `,'${jEsc(ltShort)}'` : '';
-                h += `<td class="${isToday?'is-today-cell':''}" style="position:relative;"><input type="text" class="gi ${hv} ${ro?'locked':''}" style="${styleAttr}" value="${hEsc(val)}" ${ro?'disabled':''} onchange="saveM('${jEsc(qForDate)}','${jEsc(cls)}','${jEsc(l.name)}','${jEsc(studentKey)}',${dIdx},this.value${ltArg})"></td>`;
+                h += `<td class="${isToday?'is-today-cell':''}" style="position:relative;"><input type="text" class="gi ${hv} ${ro?'locked':''}" style="${styleAttr}" value="${hEsc(val)}" ${ro?'disabled':''} onchange="saveM('${jEsc(qForDate)}','${jEsc(cls)}','${jEsc(l.name)}','${jEsc(studentKey)}',${dIdx},this.value${ltArg},${useGroupIdx})"></td>`;
             });
             h += `</tr>`;
         });
@@ -3336,7 +3392,7 @@
             allGroups.forEach((g, gi) => {
                 // Har bir guruh uchun sanalar alohida hisoblanadi; guruhdagi darslar soni
                 // shu guruhning sana ustunlari soniga ta'sir qiladi.
-                const groupDates = generateDates(cls, sub, activeQuarter);
+                const groupDates = generateDates(cls, sub, activeQuarter, gi);
                 groupDates.forEach((d, di) => {
                     const ltArr = getLessonTypesForColumn(cls, sub, activeQuarter, di, gi);
                     const types = ltArr.length ? ltArr : [null];
@@ -3371,7 +3427,7 @@
                     const ro = !hasA || dLocked || cLocked;
                     const styleAttr = ro ? '' : getGradeStyle(val);
                     const ltArg = col.ltShort ? `,'${jEsc(col.ltShort)}'` : '';
-                    combined += `<td class="${col.d.date===todayAll?'is-today-cell ':''}${col.ltShort?'lt-col-cell':''}"><input type="text" class="gi ${val?'has-value':''} ${ro?'locked':''}" style="${styleAttr}" value="${hEsc(val)}" ${ro?'disabled':''} onchange="saveM('${jEsc(activeQuarter)}','${jEsc(cls)}','${jEsc(sub)}','${jEsc(studentKey)}',${col.dIdx},this.value${ltArg})"></td>`;
+                    combined += `<td class="${col.d.date===todayAll?'is-today-cell ':''}${col.ltShort?'lt-col-cell':''}"><input type="text" class="gi ${val?'has-value':''} ${ro?'locked':''}" style="${styleAttr}" value="${hEsc(val)}" ${ro?'disabled':''} onchange="saveM('${jEsc(activeQuarter)}','${jEsc(cls)}','${jEsc(sub)}','${jEsc(studentKey)}',${col.dIdx},this.value${ltArg},${col.groupIdx})"></td>`;
                 });
                 const avg = rowVals.length ? (rowVals.reduce((a,b)=>a+b,0)/rowVals.length).toFixed(1) : '';
                 const qVal = marksAll[studentKey]?.['__quarter'] || '';
@@ -3386,7 +3442,7 @@
         const entries = getSortedStudentEntries(cls, false, selectedGroupIdx >= 0 ? selectedGroupIdx : undefined);
         const locks = lsGet('lock_settings', {})[cls] || {};
         const dtT = lsGet('date_teachers', {});
-        const dates = generateDates(cls, sub, activeQuarter);
+        const dates = generateDates(cls, sub, activeQuarter, selectedGroupIdx);
         const marks = getMarks(activeQuarter, cls, sub);
         const today = getTodayStr();
         const lessonTypes = getLessonTypes();
@@ -3433,7 +3489,7 @@
                 const hv = val ? 'has-value' : '';
                 const ltArg = col.ltShort ? `,'${jEsc(col.ltShort)}'` : '';
                 const tdClass = (col.d.date===today?'is-today-cell ':'') + (col.ltShort ? 'lt-col-cell' : '');
-                h += `<td class="${tdClass}"><input type="text" class="gi ${hv} ${ro?'locked':''}" style="${styleAttr}" value="${hEsc(val)}" ${ro?'disabled':''} onchange="saveM('${jEsc(activeQuarter)}','${jEsc(cls)}','${jEsc(sub)}','${jEsc(studentKey)}',${col.dIdx},this.value${ltArg})"></td>`;
+                h += `<td class="${tdClass}"><input type="text" class="gi ${hv} ${ro?'locked':''}" style="${styleAttr}" value="${hEsc(val)}" ${ro?'disabled':''} onchange="saveM('${jEsc(activeQuarter)}','${jEsc(cls)}','${jEsc(sub)}','${jEsc(studentKey)}',${col.dIdx},this.value${ltArg},${selectedGroupIdx})"></td>`;
             });
             const avg = row.length ? (row.reduce((a,b)=>a+b,0)/row.length).toFixed(1) : '';
             const qVal = marks[studentKey]?.['__quarter'] || '';
@@ -3474,37 +3530,27 @@
         document.getElementById('week-end').value = s.toISOString().slice(0,10);
         render();
     }
-    function generateDates(cls, sub, q) {
-        const custom = getCustomDates(cls, sub, q);
-        if (custom && custom.length) return custom.map(c => ({ date: c.date, instance: Number(c.instance) || 0 }));
-        const quarters = getQuarters();
-        const quarter = quarters.find(x => x.id === q);
-        let start, end;
-        if (quarter && quarter.start && quarter.end) {
-            start = new Date(quarter.start + 'T00:00:00');
-            end = new Date(quarter.end + 'T00:00:00');
-            if (isNaN(start.getTime()) || isNaN(end.getTime())) return [];
-        } else {
-            let y = new Date().getFullYear(); if (new Date().getMonth() < 7) y--;
-            const r = {'Q1':[y+'-09-02', y+'-11-01'], 'Q2':[y+'-11-04', (y+1)+'-01-08'], 'Q3':[(y+1)+'-01-12', (y+1)+'-03-20'], 'Q4':[(y+1)+'-04-01', (y+1)+'-05-25']};
-            if (!r[q]) return [];
-            start = new Date(r[q][0]); end = new Date(r[q][1]);
-        }
-        let res = [];
-        const classSubs = getClassSubjectsRaw(cls);
-        const sObj = classSubs.find(s => s.name === sub);
-        const daysArr = sObj ? sObj.days : [];
-        while (start <= end) {
-            const dow = start.getDay();
-            const cnt = (daysArr || []).filter(d => d === dow).length;
-            for (let i=0; i<cnt; i++) res.push({ date: start.getDate()+'-'+mon[start.getMonth()], instance: i });
-            start.setDate(start.getDate()+1);
-        }
-        return res;
+    function generateDates(cls, sub, q, groupIdx) {
+        // Asosiy sinf-fan sanalari; guruh sanalari faqat o'sha guruhga qo'shiladi.
+        const baseCustom = getCustomDates(cls, sub, q);
+        const base = (baseCustom && baseCustom.length ? baseCustom : buildAutoCustomDates(cls, sub, q) || [])
+            .map(c => ({ iso: c.iso || '', date: c.date || (c.iso ? dateIsoToLabel(c.iso) : ''), instance: Number(c.instance) || 0 }));
+        const gi = Number(groupIdx);
+        if (!Number.isInteger(gi) || gi < 0) return base;
+        const groupCustom = lsGet(`custom_dates_${cls}_${sub}_${q}_g_${gi}`, []) || [];
+        const merged = base.slice();
+        (Array.isArray(groupCustom) ? groupCustom : []).forEach(c => {
+            const item = { iso: c.iso || '', date: c.date || (c.iso ? dateIsoToLabel(c.iso) : ''), instance: Number(c.instance) || 0 };
+            const exists = merged.some(x => ((item.iso && x.iso === item.iso) || (!item.iso && x.date === item.date)) && Number(x.instance || 0) === item.instance);
+            if (!exists) merged.push(item);
+        });
+        merged.sort((a,b) => (a.iso || a.date || '').localeCompare(b.iso || b.date || '') || Number(a.instance || 0) - Number(b.instance || 0));
+        return merged;
     }
-    window.saveM = function(q, cls, sub, studentKey, dIdx, val, ltShort) {
+    window.saveM = function(q, cls, sub, studentKey, dIdx, val, ltShort, groupIdx) {
         if (!studentKey) return;
-        const dates = generateDates(cls, sub, q);
+        const gi = Number.isInteger(Number(groupIdx)) ? Number(groupIdx) : -1;
+        const dates = generateDates(cls, sub, q, gi);
         const d = dates[dIdx];
         if (!d) return;
         const baseKey = dateKey(d);
@@ -3513,7 +3559,7 @@
         const row = m[studentKey];
         const v = (val||'').toUpperCase().trim();
         const specialCodes = getMarkCodes();
-        const typeArr = getLessonTypesForColumn(cls, sub, q, dIdx);
+        const typeArr = getLessonTypesForColumn(cls, sub, q, dIdx, gi);
         const isSpecialCode = code => !!code && specialCodes.some(t => String(t.short).toUpperCase() === String(code).toUpperCase());
         const currentKey = baseKey + (ltShort ? '__lt_' + ltShort : '');
         const oldVal = row[currentKey] || '';
@@ -3657,10 +3703,28 @@
         const today = getTodayStr();
         let html = '';
 
-        // Guruhlar filtrlab tanlanmaydi: barcha guruhlar ketma-ket ko'rsatiladi.
-        const planGroups = groups.length
+        // Mavzular bo'limida guruhli fanlarni guruh bo'yicha filtrlash.
+        if (groups.length) {
+            const selected = window.activePlansGroupFilter ?? 'all';
+            const options = groups.map((g, i) =>
+                `<option value="${i}" ${String(selected) === String(i) ? 'selected' : ''}>${hEsc(g.name || ('Guruh ' + (i + 1)))}</option>`
+            ).join('');
+            html += `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;">
+                <label for="plans-group-filter" style="font-weight:700;color:#334155;">👥 Guruh bo'yicha filtrlash:</label>
+                <select id="plans-group-filter" class="gi" style="min-width:170px;height:38px;" onchange="window.activePlansGroupFilter=this.value;renderPlans()">
+                    <option value="all" ${selected === 'all' ? 'selected' : ''}>Barcha guruhlar</option>${options}
+                </select>
+            </div>`;
+        } else {
+            window.activePlansGroupFilter = 'all';
+        }
+
+        const allPlanGroups = groups.length
             ? groups.map((g, i) => ({ group: g, index: i, key: getGroupPlanKey(activeQuarter, cls, sub, i) }))
             : [{ group: null, index: -1, key: `plans_${activeQuarter}_${cls}_${sub}` }];
+        const planGroups = groups.length && window.activePlansGroupFilter !== 'all'
+            ? allPlanGroups.filter(item => String(item.index) === String(window.activePlansGroupFilter))
+            : allPlanGroups;
 
         planGroups.forEach(({group, index, key: planKey}) => {
             const plans = lsGet(planKey, {}) || {};
@@ -3672,9 +3736,17 @@
             dates.forEach((d, i) => {
                 const isToday = d.date === today;
                 const locked = lockTrue(locks.dates?.[sub]?.[activeQuarter]?.[i]);
+                // Mavzu/uy vazifasiga ruxsat: fan, guruh, sana yoki
+                // sana+guruh+dars turi bo'yicha biriktirilgan ustozlarning
+                // istalgan biri shu yozuvni tahrirlashi mumkin.
                 const dateTeacher = (index >= 0 ? dtT[groupDateTeacherKey(cls,sub,activeQuarter,i,index)] : '') || dtT[`${cls}_${sub}_${activeQuarter}_d_${i}`] || '';
-                const assignedTeacher = dateTeacher || groupTeacher || subObj?.teacher || '';
-                const canEdit = checkAccess(assignedTeacher);
+                const lessonTypeTeachers = index >= 0
+                    ? getLessonTypesForColumn(cls, sub, activeQuarter, i, index)
+                        .map(lt => dtT[groupDateTeacherKey(cls,sub,activeQuarter,i,index,lt)] || '')
+                        .filter(Boolean)
+                    : [];
+                const assignedTeachers = [dateTeacher, ...lessonTypeTeachers, groupTeacher, subObj?.teacher || ''].filter(Boolean);
+                const canEdit = assignedTeachers.some(name => checkAccess(name));
                 const ro = !canEdit || locked;
                 const dk = dateKey(d);
                 html += `<div class="lesson-card ${isToday?'is-today':''} ${locked?'locked':''}">
@@ -3958,6 +4030,31 @@
         return (lessonType ? data[groupDateTeacherKey(cls,sub,q,dIdx,groupIdx,lessonType)] : '') ||
             data[groupDateTeacherKey(cls,sub,q,dIdx,groupIdx)] || data[`${cls}_${sub}_${q}_d_${dIdx}`] || '';
     }
+    // O‘quvchiga faqat o‘zi biriktirilgan guruhning shu sanadagi ustozini ko‘rsatamiz.
+    // Dars turi bo‘yicha alohida biriktirilgan ustoz ham hisobga olinadi.
+    // Guruhga mos biriktirish topilmasa, fan uchun umumiy sana ustoziga o‘tiladi.
+    function getStudentAssignedTeacher(data, cls, sub, q, dateIso, groupIdx) {
+        data = data || {};
+        if (Number(groupIdx) >= 0) {
+            const groupDates = generateDates(cls, sub, q, Number(groupIdx));
+            const groupIdxDate = groupDates.findIndex(d => d.iso === dateIso);
+            if (groupIdxDate >= 0) {
+                const groupTypes = getLessonTypesForColumn(cls, sub, q, groupIdxDate, Number(groupIdx));
+                for (const lt of groupTypes) {
+                    const typedKey = groupDateTeacherKey(cls, sub, q, groupIdxDate, Number(groupIdx), lt);
+                    if (data[typedKey]) return data[typedKey];
+                }
+                const groupKey = groupDateTeacherKey(cls, sub, q, groupIdxDate, Number(groupIdx), '');
+                if (data[groupKey]) return data[groupKey];
+            }
+        }
+        const subjectDates = generateDates(cls, sub, q);
+        const subjectIdxDate = subjectDates.findIndex(d => d.iso === dateIso);
+        if (subjectIdxDate >= 0) {
+            return data[`${cls}_${sub}_${q}_d_${subjectIdxDate}`] || '';
+        }
+        return '';
+    }
     window.loadDateTeacherAssignSubjects = function() {
         const cls = document.getElementById('assign-teacher-class')?.value;
         const subSel = document.getElementById('assign-teacher-subject');
@@ -3981,7 +4078,7 @@
         const old = gSel.value;
         gSel.innerHTML = '';
         (lsGet(`groups_${cls}_${sub}`, []) || []).forEach((g,i) => gSel.add(new Option(g.name || `Guruh ${i+1}`, String(i))));
-        if (!gSel.options.length) gSel.add(new Option('Umumiy dars', '-1'));
+        gSel.add(new Option('Umumiy fan (barcha guruhlar)', '-1'));
         if (old && Array.from(gSel.options).some(o => o.value === old)) gSel.value = old;
         loadDateTeacherAssignDates();
     };
@@ -3993,7 +4090,7 @@
         if (!dSel) return;
         const old = dSel.value;
         dSel.innerHTML = '';
-        if (cls && sub) generateDates(cls, sub, q).forEach((d,i) => dSel.add(new Option(`${d.date} — ${d.instance+1}-dars`, String(i))));
+        if (cls && sub) generateDates(cls, sub, q, Number(document.getElementById('assign-teacher-group')?.value ?? -1)).forEach((d,i) => dSel.add(new Option(`${d.date} — ${d.instance+1}-dars`, String(i))));
         if (old && Array.from(dSel.options).some(o => o.value === old)) dSel.value = old;
         loadDateTeacherAssignLessonTypes();
     };
@@ -4020,9 +4117,9 @@
         const dIdx = Number(document.getElementById('assign-teacher-date')?.value);
         const name = document.getElementById('assign-teacher-name')?.value.trim();
         const lessonType = document.getElementById('assign-teacher-lesson-type')?.value || '';
-        if (!cls || !sub || !name || !Number.isInteger(dIdx) || dIdx < 0 || groupIdx < 0) return alert('Sinf, fan, guruh, sana va ustozni to‘liq tanlang.');
+        if (!cls || !sub || !name || !Number.isInteger(dIdx) || dIdx < 0) return alert('Sinf, fan, sana va ustozni to‘liq tanlang.');
         const data = lsGet('date_teachers', {}) || {};
-        const key = groupDateTeacherKey(cls,sub,q,dIdx,groupIdx,lessonType);
+        const key = groupIdx < 0 ? `${cls}_${sub}_${q}_d_${dIdx}` : groupDateTeacherKey(cls,sub,q,dIdx,groupIdx,lessonType);
         data[key] = name;
         data.__ts = Date.now();
         lsSet('date_teachers', data);
@@ -4050,19 +4147,58 @@
         const gi = Number(document.getElementById('assign-teacher-group')?.value ?? -1);
         const di = Number(document.getElementById('assign-teacher-date')?.value);
         const lessonType = document.getElementById('assign-teacher-lesson-type')?.value || '';
-        const dates = cls && sub ? generateDates(cls,sub,q) : [];
+        const dates = cls && sub ? generateDates(cls,sub,q,gi) : [];
         const data = lsGet('date_teachers', {}) || {};
         const rows = [];
-        if (gi >= 0 && Number.isInteger(di) && dates[di]) {
+        if (Number.isInteger(di) && dates[di]) {
             const d = dates[di];
-            const types = getLessonTypesForColumn(cls,sub,q,di,gi);
-            const choices = types.length ? types : [''];
-            choices.forEach(lt => {
-                const key = groupDateTeacherKey(cls,sub,q,di,gi,lt);
-                if (data[key]) rows.push({key,label:`${d.date} · ${d.instance+1}-dars · ${lt || 'Umumiy'}`,teacher:data[key]});
-            });
+            if (gi < 0) {
+                const key = `${cls}_${sub}_${q}_d_${di}`;
+                if (data[key]) rows.push({key,label:`${d.date} · ${d.instance+1}-dars · Umumiy fan`,teacher:data[key]});
+            } else {
+                const types = getLessonTypesForColumn(cls,sub,q,di,gi);
+                const choices = types.length ? types : [''];
+                choices.forEach(lt => {
+                    const key = groupDateTeacherKey(cls,sub,q,di,gi,lt);
+                    if (data[key]) rows.push({key,label:`${d.date} · ${d.instance+1}-dars · ${lt || 'Umumiy'}`,teacher:data[key]});
+                });
+            }
         }
         el.innerHTML = rows.length ? rows.map(r => `<div style="display:flex;flex-direction:column;gap:4px;padding:7px 3px;border-bottom:1px solid #e2e8f0;"><b style="font-size:12px;">${hEsc(r.label)}</b><span style="font-size:12px;">👨‍🏫 ${hEsc(r.teacher)}</span><button class="tab-btn" style="width:100%;background:#fee2e2;color:#991b1b;border:0;" onclick="removeDateTeacherAssignment('${jEsc(r.key)}')">Biriktirishni bekor qilish</button></div>`).join('') : '<div style="font-size:12px;color:#64748b;">Tanlangan sana va dars turi uchun biriktirilgan ustoz hozircha yo‘q.</div>';
+    };
+
+    function customGroupDateKey(cls, sub, q, gi) { return `custom_dates_${cls}_${sub}_${q}_g_${gi}`; }
+    window.loadCustomDateSubjects = function() {
+        const cls=document.getElementById('custom-date-class')?.value, sel=document.getElementById('custom-date-subject'); if(!sel)return;
+        sel.innerHTML=''; if(cls)getClassSubjectsRaw(cls).forEach(x=>sel.add(new Option(x.name,x.name))); loadCustomDateGroups();
+    };
+    window.loadCustomDateGroups = function() {
+        const cls=document.getElementById('custom-date-class')?.value, sub=document.getElementById('custom-date-subject')?.value, sel=document.getElementById('custom-date-group'); if(!sel)return;
+        sel.innerHTML=''; sel.add(new Option('Umumiy fan sanalari','-1'));
+        (lsGet(`groups_${cls}_${sub}`,[])||[]).forEach((g,i)=>sel.add(new Option(g.name||`Guruh ${i+1}`,String(i)))); renderCustomDateList();
+    };
+    window.addCustomGroupDate = function() {
+        const cls=document.getElementById('custom-date-class')?.value, sub=document.getElementById('custom-date-subject')?.value, q=document.getElementById('custom-date-quarter')?.value, gi=Number(document.getElementById('custom-date-group')?.value??-1), iso=document.getElementById('custom-date-value')?.value, inst=Math.max(1,Number(document.getElementById('custom-date-instance')?.value||1))-1;
+        if(!cls||!sub||!q||!iso||!Number.isInteger(gi))return alert('Sinf, fan, chorak va sanani tanlang.');
+        const key=gi>=0?customGroupDateKey(cls,sub,q,gi):`custom_dates_${cls}_${sub}_${q}`;
+        let arr=lsGet(key,null); if(!Array.isArray(arr)||!arr.length) arr=gi>=0?[]:(buildAutoCustomDates(cls,sub,q)||[]);
+        const dt=new Date(iso+'T00:00:00'); const item={iso,date:`${dt.getDate()}-${mon[dt.getMonth()]}`,instance:inst};
+        if(arr.some(x=>x.iso===iso&&Number(x.instance||0)===inst))return alert('Bu sana va dars raqami avval kiritilgan.');
+        arr.push(item); arr.sort((a,b)=>(a.iso||'').localeCompare(b.iso||'')||Number(a.instance||0)-Number(b.instance||0)); lsSet(key,arr); window.syncToFirebase(key,arr); renderCustomDateList();
+        ['render','renderTeacherSchedule'].forEach(fn=>{if(typeof window[fn]==='function')window[fn]();}); showSaved();
+    };
+    window.editCustomGroupDate = function(index) {
+        const cls=document.getElementById('custom-date-class').value,sub=document.getElementById('custom-date-subject').value,q=document.getElementById('custom-date-quarter').value,gi=Number(document.getElementById('custom-date-group').value),key=gi>=0?customGroupDateKey(cls,sub,q,gi):`custom_dates_${cls}_${sub}_${q}`;
+        const arr=lsGet(key,[])||[], item=arr[index]; if(!item)return; const iso=prompt('Yangi sana (YYYY-MM-DD):',item.iso||''); if(iso===null)return; if(!/^\d{4}-\d{2}-\d{2}$/.test(iso))return alert('Sana formati YYYY-MM-DD bo‘lsin.');
+        const dt=new Date(iso+'T00:00:00'); item.iso=iso; item.date=`${dt.getDate()}-${mon[dt.getMonth()]}`; const n=prompt('Shu kundagi dars raqami:',String(Number(item.instance||0)+1)); if(n===null)return; item.instance=Math.max(1,Number(n)||1)-1; arr.sort((a,b)=>(a.iso||'').localeCompare(b.iso||'')||Number(a.instance||0)-Number(b.instance||0)); lsSet(key,arr);window.syncToFirebase(key,arr);renderCustomDateList();if(typeof render==='function')render();if(typeof renderTeacherSchedule==='function')renderTeacherSchedule();
+    };
+    window.deleteCustomGroupDate = function(index) {
+        const cls=document.getElementById('custom-date-class').value,sub=document.getElementById('custom-date-subject').value,q=document.getElementById('custom-date-quarter').value,gi=Number(document.getElementById('custom-date-group').value),key=gi>=0?customGroupDateKey(cls,sub,q,gi):`custom_dates_${cls}_${sub}_${q}`; const arr=lsGet(key,[])||[]; if(!arr[index]||!confirm('Ushbu sanani o‘chirasizmi?'))return; arr.splice(index,1); if(arr.length){lsSet(key,arr);window.syncToFirebase(key,arr);}else{localStorage.removeItem(key);window.syncToFirebase(key,null);}renderCustomDateList();if(typeof render==='function')render();if(typeof renderTeacherSchedule==='function')renderTeacherSchedule();
+    };
+    window.renderCustomDateList = function() {
+        const el=document.getElementById('custom-date-list');if(!el)return; const cls=document.getElementById('custom-date-class')?.value,sub=document.getElementById('custom-date-subject')?.value,q=document.getElementById('custom-date-quarter')?.value,gi=Number(document.getElementById('custom-date-group')?.value??-1);if(!cls||!sub||!q){el.innerHTML='';return;}
+        const key=gi>=0?customGroupDateKey(cls,sub,q,gi):`custom_dates_${cls}_${sub}_${q}`;let arr=lsGet(key,null);if(!Array.isArray(arr)||!arr.length)arr=gi>=0?[]:buildAutoCustomDates(cls,sub,q);
+        el.innerHTML=arr.length?arr.map((d,i)=>`<div style="display:flex;gap:7px;align-items:center;justify-content:space-between;border-bottom:1px solid #e5e7eb;padding:6px 2px;font-size:12px;"><b>${i+1}. ${hEsc(d.date||d.iso)} — ${Number(d.instance||0)+1}-dars</b><span><button class="tab-btn" style="background:#dbeafe;color:#1d4ed8;border:0;" onclick="editCustomGroupDate(${i})">✏️</button> <button class="tab-btn" style="background:#fee2e2;color:#991b1b;border:0;" onclick="deleteCustomGroupDate(${i})">🗑️</button></span></div>`).join(''):'<span style="font-size:12px;color:#64748b;">Hozircha maxsus sana yo‘q. Umumiy fan jadvali ishlatiladi.</span>';
     };
 
     window.loadClassSettingsData = function() {
@@ -4153,8 +4289,17 @@
         if (!cls) return;
         const classSubs = getClassSubjectsRaw(cls);
         const subSel = document.getElementById('lock-sub-select');
+        const oldSub = subSel.value;
         subSel.innerHTML = '';
         classSubs.forEach(s => subSel.add(new Option(s.name, s.name)));
+        if (oldSub && Array.from(subSel.options).some(o => o.value === oldSub)) subSel.value = oldSub;
+        ['lock-cell-q-select','lock-q-select'].forEach(id => {
+            const qSel = document.getElementById(id); if (!qSel) return;
+            const oldQ = qSel.value; qSel.innerHTML = '';
+            getQuarters().forEach(q => qSel.add(new Option(q.name || q.id, q.id)));
+            if (oldQ && Array.from(qSel.options).some(o => o.value === oldQ)) qSel.value = oldQ;
+            else if (Array.from(qSel.options).some(o => o.value === activeQuarter)) qSel.value = activeQuarter;
+        });
         loadLockSettingsData();
     };
     window.loadLockSettingsData = function() {
@@ -4193,6 +4338,37 @@
         window.syncLockSettingsToFirebase(allLocks);
         render();
     };
+    window.applyLockUntilDate = function() {
+        const cls = document.getElementById('lock-class-select')?.value;
+        const sub = document.getElementById('lock-sub-select')?.value;
+        const q = document.getElementById('lock-q-select')?.value;
+        const until = document.getElementById('lock-until-date')?.value;
+        if (!cls || !sub || !q || !until) return alert('Sinf, fan, chorak va oxirgi sanani tanlang.');
+        const dates = generateDates(cls, sub, q);
+        const selectedIndex = dates.findIndex(d => d.iso === until);
+        if (selectedIndex < 0) return alert('Tanlangan sana ushbu fan jadvalida topilmadi. Sana jadvalidagi kunlardan birini tanlang.');
+        const allLocks = lsGet('lock_settings', {}) || {};
+        if (!allLocks[cls]) allLocks[cls] = {};
+        if (!allLocks[cls].dates) allLocks[cls].dates = {};
+        if (!allLocks[cls].dates[sub]) allLocks[cls].dates[sub] = {};
+        if (!allLocks[cls].dates[sub][q]) allLocks[cls].dates[sub][q] = {};
+        let count = 0;
+        dates.forEach((d, idx) => {
+            if (d.iso && d.iso <= until) {
+                allLocks[cls].dates[sub][q][idx] = true;
+                count++;
+            }
+        });
+        allLocks.__ts = Date.now();
+        lsSet('lock_settings', allLocks);
+        if (typeof window.syncLockSettingsToFirebase === 'function') window.syncLockSettingsToFirebase(allLocks);
+        const status = document.getElementById('lock-until-status');
+        if (status) status.textContent = `✅ ${count} ta sana ${until} gacha qulflandi.`;
+        loadLockDatesList();
+        render();
+        showSaved();
+    };
+
     window.loadLockDatesList = function() {
         const cls = document.getElementById('lock-class-select').value;
         const sub = document.getElementById('lock-sub-select').value;
@@ -4339,7 +4515,20 @@
             return !group || (group.name && group.index >= 0);
         }).map(s => {
             const group = getStudentGroupForSubject(cls, s.name, name);
-            return group && group.name ? { ...s, studentGroup: group.name, groupName: group.name, studentGroupTeacher: group.teacher, teacher: group.teacher || s.teacher, groupIndex: group.index } : s;
+            const groupIndex = group && group.index >= 0 ? group.index : -1;
+            // Admin biriktirgan sana ustozini o‘quvchi panelidagi fan kartasida ham ko‘rsatish.
+            const assignedDateTeacher = getStudentAssignedTeacher(
+                lsGet('date_teachers', {}) || {}, cls, s.name, myQuarter, viewDateIso, groupIndex
+            );
+            const shownTeacher = assignedDateTeacher || (group && group.teacher) || s.teacher || '';
+            return {
+                ...s,
+                studentGroup: group && group.name ? group.name : s.studentGroup,
+                groupName: group && group.name ? group.name : s.groupName,
+                studentGroupTeacher: shownTeacher,
+                teacher: shownTeacher,
+                ...(group && group.name ? { groupIndex: group.index } : {})
+            };
         });
 
         let dailyHtml = '';
@@ -4361,13 +4550,13 @@
             dailyHtml += `<div style="text-align:center; padding:40px; color:#94a3b8;">Bu kunda dars yo'q.</div>`;
         } else {
             myLessons.forEach((l, idx) => {
-                const dates = generateDates(cls, l.name, myQuarter);
+                const studentGroup = getStudentGroupForSubject(cls, l.name, name);
+                const groupIdxForTeacher = studentGroup && studentGroup.index >= 0 ? studentGroup.index : -1;
+                const dates = generateDates(cls, l.name, myQuarter, groupIdxForTeacher);
                 const dIdx = dates.findIndex(x => x.date === viewDateStr && x.instance === l.lessonIndex);
                 const time = getShiftedLessonTime(cls, l.name, dIdx);
                 const dtT = lsGet('date_teachers', {});
-                const studentGroup = getStudentGroupForSubject(cls, l.name, name);
-                const groupIdxForTeacher = studentGroup && studentGroup.index >= 0 ? studentGroup.index : -1;
-                const dateTeacher = dIdx !== -1 ? getDateTeacherForLessonType(dtT, cls, l.name, myQuarter, dIdx, groupIdxForTeacher, null) : '';
+                const dateTeacher = getStudentAssignedTeacher(dtT, cls, l.name, myQuarter, viewDateIso, groupIdxForTeacher);
                 const subjectInfo = getClassSubjectsRaw(cls).find(x => x.name === l.name) || {};
                 const displayTeacher = dateTeacher || (studentGroup && studentGroup.teacher) || l.teacher || subjectInfo.teacher || '';
                 const teacherInitial = displayTeacher.trim().charAt(0).toUpperCase();
@@ -4407,7 +4596,7 @@
                     });
                 }
 
-                const topicHtml = topic.trim() ? `<div class="student-topic-plain" style="margin-top:5px;">${hEsc(topic.trim())}</div>` : '';
+                const topicHtml = topic.trim() ? `<div class="student-weekly-topic student-main-topic" style="margin-top:5px;" title="To‘liq mavzuni ko‘rish uchun bosing" onclick="event.stopPropagation();this.classList.toggle('expanded')">${hEsc(topic.trim())}</div>` : '';
                 dailyHtml += `<div class="student-lesson-detail ${isToday ? 'today' : ''}" onclick="openStudentLessonModal('${jEsc(cls)}','${jEsc(l.name)}','${jEsc(myQuarter)}','${jEsc(viewDateIso)}',${l.lessonIndex})">
                     <div class="stu-detail-header">
                         <div>
@@ -4449,7 +4638,8 @@
             let listHtml = '';
             if (myDayLessons.length === 0) listHtml = '<p style="color:#94a3b8; font-size:12px; margin:5px 0;">Dars yo\'q</p>';
             else myDayLessons.forEach((l, idx) => {
-                const dates = generateDates(cls, l.name, myQuarter);
+                const studentGroup = getStudentGroupForSubject(cls, l.name, name);
+                const dates = generateDates(cls, l.name, myQuarter, studentGroup && studentGroup.index >= 0 ? studentGroup.index : -1);
                 const dIdx = dates.findIndex(x => x.date === dateStr && x.instance === l.lessonIndex);
                 let timeTxt = '';
                 let weeklyMarkBadges = '';
@@ -4479,7 +4669,7 @@
                     });
                 }
                 const weeklyGroupInfo = getStudentGroupForSubject(cls, l.name, name);
-                const weeklyDateTeacher = dIdx !== -1 ? getDateTeacherForLessonType(lsGet('date_teachers', {}), cls, l.name, myQuarter, dIdx, weeklyGroupInfo && weeklyGroupInfo.index >= 0 ? weeklyGroupInfo.index : -1, null) : '';
+                const weeklyDateTeacher = getStudentAssignedTeacher(lsGet('date_teachers', {}), cls, l.name, myQuarter, ds, weeklyGroupInfo && weeklyGroupInfo.index >= 0 ? weeklyGroupInfo.index : -1);
                 const weeklySubjectInfo = getClassSubjectsRaw(cls).find(x => x.name === l.name) || {};
                 const weeklyDisplayTeacher = weeklyDateTeacher || (weeklyGroupInfo && weeklyGroupInfo.teacher) || l.teacher || weeklySubjectInfo.teacher || '';
                 const weeklyPlanKey = weeklyGroupInfo && weeklyGroupInfo.name
@@ -4577,17 +4767,19 @@
     window.openStudentLessonModal = function(cls, sub, q, dateIso, lessonIdx) {
         const dt = new Date(dateIso + 'T00:00:00');
         const dateStr = `${dt.getDate()}-${mon[dt.getMonth()]}`;
-        const dates = generateDates(cls, sub, q);
+        const studentNameForDates = loggedStudent && loggedStudent.name;
+        const studentGroupForDates = studentNameForDates ? getStudentGroupForSubject(cls, sub, studentNameForDates) : null;
+        const dates = generateDates(cls, sub, q, studentGroupForDates && studentGroupForDates.index >= 0 ? studentGroupForDates.index : -1);
         const dIdx = dates.findIndex(x => x.date === dateStr && x.instance === lessonIdx);
         if (dIdx === -1) return;
 
         const time = getShiftedLessonTime(cls, sub, dIdx);
         const dtT = lsGet('date_teachers', {});
-        const overrideTeacher = dtT[`${cls}_${sub}_${q}_d_${dIdx}`];
         const classSubs = getClassSubjectsRaw(cls);
         const subObj = classSubs.find(s => s.name === sub);
         const studentName = loggedStudent.name;
-        const studentGroup = getStudentGroupForSubject(cls, sub, studentName);
+        const studentGroup = studentGroupForDates;
+        const assignedDateTeacher = getStudentAssignedTeacher(dtT, cls, sub, q, dateIso, studentGroup && studentGroup.index >= 0 ? studentGroup.index : -1);
 
         const planKey = studentGroup && studentGroup.name
             ? getGroupPlanKey(q, cls, sub, studentGroup.index)
@@ -4640,7 +4832,7 @@
 
             <div style="font-size:12px; font-weight:800; color:#1e293b; background:#f1f5f9; padding:8px 12px; border-radius:6px; margin-bottom:10px;">Uy vazifasi darsga</div>
             <div style="font-size:14px; color:#475569; margin-bottom:15px;">${hw ? hEsc(hw) : '<span style="color:#94a3b8; font-style:italic;">Kiritilmagan</span>'}</div>
-            ${(getDateTeacherForLessonType(dtT, cls, sub, q, dIdx, studentGroup && studentGroup.index >= 0 ? studentGroup.index : -1, null) || (studentGroup && studentGroup.teacher) || (subObj && subObj.teacher)) ? `<div class="stu-detail-teacher" style="margin:4px 0 12px;padding:0;border:0;"><div class="stu-teacher-avatar">${hEsc(((getDateTeacherForLessonType(dtT, cls, sub, q, dIdx, studentGroup && studentGroup.index >= 0 ? studentGroup.index : -1, null) || (studentGroup && studentGroup.teacher) || (subObj && subObj.teacher) || '').trim().charAt(0).toUpperCase() || 'U'))}</div><span class="stu-teacher-name">${hEsc(getDateTeacherForLessonType(dtT, cls, sub, q, dIdx, studentGroup && studentGroup.index >= 0 ? studentGroup.index : -1, null) || (studentGroup && studentGroup.teacher) || (subObj && subObj.teacher) || '')}</span></div>` : ''}
+            ${(assignedDateTeacher || (studentGroup && studentGroup.teacher) || (subObj && subObj.teacher)) ? `<div class="stu-detail-teacher" style="margin:4px 0 12px;padding:0;border:0;"><div class="stu-teacher-avatar">${hEsc(((assignedDateTeacher || (studentGroup && studentGroup.teacher) || (subObj && subObj.teacher) || '').trim().charAt(0).toUpperCase() || 'U'))}</div><span class="stu-teacher-name">${hEsc(assignedDateTeacher || (studentGroup && studentGroup.teacher) || (subObj && subObj.teacher) || '')}</span></div>` : ''}
 
             <div style="margin-top:20px; padding-top:15px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end;">
                 <button class="tab-btn" style="background:#f1f5f9; color:#64748b; font-weight:bold; padding:10px 20px; border-radius:8px;" onclick="closeStudentLessonModal()">Yopish</button>
