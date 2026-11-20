@@ -3049,7 +3049,7 @@
     }
     function dateKey(d) { return `${d.date}_${d.instance}`; }
 
-    function renderDailyAllGroups(cls, dateValStr, dt, dateStr, qForDate, allGroups) {
+    function renderDailyAllGroups(cls, dateValStr, dt, dateStr, qForDate, allGroups, selectedSubject) {
         const entries = getSortedStudentEntries(cls, true);
         const locks = lsGet('lock_settings', {})[cls] || {};
         const dtT = lsGet('date_teachers', {});
@@ -3060,9 +3060,21 @@
         lessons.forEach(l => {
             const dates = generateDates(cls, l.name, qForDate);
             const dIdx = dates.findIndex(d => d.date === dateStr && d.instance === l.lessonIndex);
-            allGroups.forEach((g, gi) => {
-                const types = dIdx >= 0 ? getLessonTypesForColumn(cls, l.name, qForDate, dIdx, gi) : [];
-                (types.length ? types : [null]).forEach((ltShort, ti) => columns.push({l, dates, dIdx, ltShort, groupIdx:gi, groupName:g.name || ('Guruh '+(gi+1)), first:ti===0}));
+            // Har bir fan o'z guruhlariga qarab chiqariladi.
+            // Guruhlanmagan fan bitta umumiy ustun bo'lib qoladi.
+            // Kunlik/haftalik umumiy jadvalda faqat tanlangan guruhli fan
+            // guruhlarga ajratiladi. Boshqa fanlar bitta umumiy ustun bo'lib qoladi.
+            const isSelectedGroupedSubject = l.name === selectedSubject;
+            const subjectGroups = isSelectedGroupedSubject ? (allGroups || []) : [];
+            const groupsForSubject = subjectGroups.length
+                ? subjectGroups.map((g, gi) => ({ group: g, groupIdx: gi, groupName: g.name || ('Guruh ' + (gi + 1)) }))
+                : [{ group: null, groupIdx: -1, groupName: '' }];
+            groupsForSubject.forEach(({group, groupIdx, groupName}) => {
+                const types = dIdx >= 0 ? getLessonTypesForColumn(cls, l.name, qForDate, dIdx, groupIdx) : [];
+                (types.length ? types : [null]).forEach((ltShort, ti) => columns.push({
+                    l, dates, dIdx, ltShort, groupIdx, groupName, first: ti === 0,
+                    grouped: !!group, groupStudents: group?.students || []
+                }));
             });
         });
         let h = `<table><thead><tr><th>№</th><th class="s-name">O'quvchi</th>`;
@@ -3077,15 +3089,20 @@
         entries.forEach((entry, i) => {
             h += `<tr><td>${i+1}</td><td class="s-name">${hEsc(entry.name)}${entry.isDuplicate?`<span class="dup-badge">#${entry.occ+1}</span>`:''}</td>`;
             columns.forEach(col => {
-                const group = allGroups[col.groupIdx];
-                if (!group?.students?.includes(entry.name) || col.dIdx < 0 || !col.dates[col.dIdx]) { h += `<td class="${isToday?'is-today-cell':''} group-empty-cell"></td>`; return; }
+                // Guruhli fan faqat shu guruh o'quvchilariga tegishli;
+                // guruhsiz fan esa butun sinf uchun ko'rsatiladi.
+                if ((col.grouped && !col.groupStudents.includes(entry.name)) || col.dIdx < 0 || !col.dates[col.dIdx]) {
+                    h += `<td class="${isToday?'is-today-cell':''} group-empty-cell"></td>`; return;
+                }
                 const dk = dateKey(col.dates[col.dIdx]);
                 const markKey = dk + (col.ltShort ? '__lt_' + col.ltShort : '');
                 const mObj = getMarks(qForDate, cls, col.l.name);
                 const val = mObj[entry.key]?.[markKey] || (col.ltShort ? mObj[entry.key]?.[dk] : '') || '';
                 const cellLocked = lockTrue(locks.cells?.[entry.key]?.[col.l.name]?.[qForDate]?.[col.dIdx]);
                 const dLocked = lockTrue(locks.dates?.[col.l.name]?.[qForDate]?.[col.dIdx]);
-                const st = getDateTeacherForLessonType(dtT,cls,col.l.name,qForDate,col.dIdx,col.groupIdx,col.ltShort);
+                const st = col.grouped
+                    ? getDateTeacherForLessonType(dtT,cls,col.l.name,qForDate,col.dIdx,col.groupIdx,col.ltShort)
+                    : (dtT[`${cls}_${col.l.name}_${qForDate}_d_${col.dIdx}`] || '');
                 const hasA = st ? checkAccess(st) : isAllowedForStudent(cls, col.l.name, col.l, entry.name);
                 const ro = !hasA || dLocked || cellLocked;
                 h += `<td class="${isToday?'is-today-cell':''}"><input type="text" class="gi ${val?'has-value':''} ${ro?'locked':''}" style="${ro?'':getGradeStyle(val)}" value="${hEsc(val)}" ${ro?'disabled':''} onchange="saveM('${jEsc(qForDate)}','${jEsc(cls)}','${jEsc(col.l.name)}','${jEsc(entry.key)}',${col.dIdx},this.value${col.ltShort?`, '${jEsc(col.ltShort)}'`:''})"></td>`;
@@ -3112,7 +3129,7 @@
         // Umumiy ko'rinish: barcha guruhlar va o'quvchilar bitta jadvalda,
         // guruh nomi esa tegishli sana ustunining tepasida yoziladi.
         if (!groupIsExplicit && selectedGroupIdx < 0 && allGroups.length) {
-            return renderDailyAllGroups(cls, dateValStr, dt, dateStr, qForDate, allGroups);
+            return renderDailyAllGroups(cls, dateValStr, dt, dateStr, qForDate, allGroups, document.getElementById('s-select').value);
         }
         const entries = getSortedStudentEntries(cls, false, selectedGroupIdx >= 0 ? selectedGroupIdx : undefined);
         const locks = lsGet('lock_settings', {})[cls] || {};
