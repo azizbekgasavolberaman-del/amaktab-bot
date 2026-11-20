@@ -28,7 +28,7 @@
 
     const setLS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} };
     const getLSmod = (k) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch(e) { return null; } };
-    const fireRefresh = () => { if (typeof window.fullRefresh === 'function') window.fullRefresh(); else if (typeof window.render === 'function') window.render(); };
+    const fireRefresh = () => { if (typeof window.fullRefresh === 'function') window.fullRefresh(); else if (typeof window.render === 'function') window.render(); if (typeof window.renderStudentView === 'function' && localStorage.getItem('loggedStudent')) window.renderStudentView(); };
 
     function acceptRemote(key, remote) {
         if (remote === null || remote === undefined) return false;
@@ -5092,14 +5092,17 @@
         const skey = getStudentKeyByName(cls, name);
         let html = '';
         mySubObjs.forEach(s => {
-            const dates = generateDates(cls, s.name, q);
+            // Guruhga biriktirilgan sana va dars turi kalitlari ham ustoz jurnalidagi bilan bir xil olinadi.
+            const group = getStudentGroupForSubject(cls, s.name, name);
+            const groupIdx = group && Number.isInteger(group.index) ? group.index : -1;
+            const dates = generateDates(cls, s.name, q, groupIdx);
             const m = getMarks(q, cls, s.name)[skey] || {};
-            const planKey = Number.isInteger(s.groupIndex) ? getGroupPlanKey(q, cls, s.name, s.groupIndex) : `plans_${q}_${cls}_${s.name}`;
+            const planKey = groupIdx >= 0 ? getGroupPlanKey(q, cls, s.name, groupIdx) : `plans_${q}_${cls}_${s.name}`;
             const plans = lsGet(planKey, {}) || {};
             let chips = '';
             const valid = [];
-            dates.forEach(d => {
-                const dk = `${d.date}_${d.instance}`;
+            dates.forEach((d, dIdx) => {
+                const dk = dateKey(d);
                 const v = m[dk];
                 if (v) {
                     if (!isNaN(v)) valid.push(parseFloat(v));
@@ -5107,6 +5110,22 @@
                     const noteHtml = note ? `<span class="stu-mark-note">📝 ${hEsc(note)}</span>` : '';
                     chips += `<div class="stu-mchip" style="background:${gradeColorHex(v)}">${hEsc(v)}<small>${hEsc(d.date)}</small>${noteHtml}</div>`;
                 }
+                // Alohida dars turi ustunlariga qo'yilgan baholar ham o'quvchiga ko'rinsin.
+                const lessonTypes = getLessonTypesForColumn(cls, s.name, q, dIdx, groupIdx);
+                const shown = new Set();
+                lessonTypes.forEach(short => {
+                    const typeKey = dk + '__lt_' + short;
+                    const typeValue = m[typeKey];
+                    if (!typeValue) return;
+                    const dedupe = String(typeValue).toUpperCase();
+                    if (shown.has(dedupe)) return;
+                    shown.add(dedupe);
+                    if (!isNaN(typeValue)) valid.push(parseFloat(typeValue));
+                    const typeObj = getLessonTypes().find(t => String(t.short) === String(short));
+                    const codeObj = getMarkCodes().find(t => String(t.short).toUpperCase() === String(typeValue).toUpperCase());
+                    const label = codeObj ? codeObj.full : (typeObj ? typeObj.full : short);
+                    chips += `<div class="stu-mchip" title="${hEsc(label)}" style="background:${gradeColorHex(typeValue)}">${hEsc(typeValue)}<small>${hEsc(d.date)} · ${hEsc(short)}</small></div>`;
+                });
             });
             if (!chips) chips = '<span style="color:#94a3b8;font-size:12px;">Baholar yo\'q</span>';
             const avg = valid.length ? (valid.reduce((a,b)=>a+b,0)/valid.length).toFixed(1) : '—';
