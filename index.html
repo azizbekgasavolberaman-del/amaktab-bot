@@ -439,26 +439,69 @@
     .stu-today-nav span { font-size: 14px; font-weight: 700; color: #1e293b; }
 
 
-    /* O'quvchi bosh menyusidagi so'nggi baholar — gorizontal lenta */
-    .stu-latest-wrap { margin: 0 -16px 16px; padding: 0 16px 14px; border-bottom: 1px solid #d8dee5; }
-    .stu-latest-title { font-size:16px; font-weight:700; color:#111827; margin:2px 0 8px; }
-    .stu-latest-scroll { display:flex; align-items:flex-start; gap:9px; overflow-x:auto; overflow-y:hidden; padding:2px 2px 8px; scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
-    .stu-latest-day { color:#8b949e; font-size:10px; font-weight:700; letter-spacing:.3px; margin:0 0 4px; }
-    .stu-latest-group { flex:0 0 126px; min-width:126px; display:flex; flex-direction:column; gap:0; }
-    .stu-latest-card { flex:0 0 126px; min-width:126px; overflow:hidden; color:#111; scroll-snap-align:start; display:flex; flex-direction:column; gap:5px; }
-    .stu-latest-posted { min-height:14px; font-size:9px; line-height:1.3; color:#92999f; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .stu-latest-gradebox { height:66px; width:100%; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#fff; overflow:hidden; }
-    .stu-latest-grade { text-align:center; font-family:Roboto, Arial, sans-serif; font-size:38px; line-height:1; font-weight:400; color:#fff; padding:0; }
-    .stu-latest-bottom { font-size:10px; line-height:1.3; color:#92999f; font-weight:400; overflow-wrap:anywhere; }
-    .stu-latest-bottom b { display:block; font-size:12px; line-height:1.2; color:#111; font-weight:600; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .stu-latest-empty { color:#8b949e; font-size:12px; padding:10px 0; }
-    @media(max-width:640px) {
-      .stu-latest-group { flex-basis:120px; min-width:120px; }
-      .stu-latest-card { flex-basis:120px; min-width:120px; }
-      .stu-latest-gradebox { height:62px; }
-      .stu-latest-grade { font-size:36px; }
+    /* O'quvchi bosh menyusidagi so'nggi baholar — rasmga o'xshash gorizontal lenta */
+    .stu-latest-wrap {
+        margin: 0 -16px 18px;
+        padding: 0 34px 16px;
+        border-bottom: 1px solid #d5d5d5;
+        background: transparent;
     }
-
+    .stu-latest-title { font-size:18px; font-weight:700; color:#111; margin:2px 0 12px; }
+    .stu-latest-scroll {
+        display:flex; align-items:flex-start; gap:16px;
+        overflow-x:auto; overflow-y:hidden; padding:0 0 8px;
+        scroll-snap-type:none; scroll-behavior:auto; -webkit-overflow-scrolling:touch;
+        touch-action:pan-x pan-y; scrollbar-width:none;
+    }
+    .stu-latest-scroll::-webkit-scrollbar { display:none; }
+    .stu-latest-group {
+        flex:0 0 auto; min-width:166px; max-width:none;
+        display:flex; flex-direction:column; gap:0; scroll-snap-align:start;
+    }
+    .stu-latest-day {
+        min-height:24px; color:#8b9298; font-size:14px; line-height:20px;
+        font-weight:600; letter-spacing:.2px; margin:0 0 8px;
+        text-transform:uppercase; white-space:nowrap;
+    }
+    .stu-latest-day-cards { display:flex; align-items:flex-start; gap:16px; }
+    .stu-latest-day-cards > .stu-latest-card { flex:0 0 166px; width:166px; }
+    .stu-latest-card {
+        width:100%; min-width:0; overflow:hidden; color:#111;
+        display:flex; flex-direction:column; gap:0;
+    }
+    .stu-latest-posted { display:block; color:#92999f; font-size:13px; line-height:1.25; margin:0 0 5px; white-space:nowrap; }
+    .stu-latest-gradebox {
+        height:103px; width:100%; border-radius:10px;
+        display:flex; align-items:center; justify-content:center;
+        color:#fff; overflow:hidden;
+        margin-bottom:12px;
+    }
+    .stu-latest-grade {
+        text-align:center; font-family:Roboto,Arial,sans-serif;
+        font-size:76px; line-height:1; font-weight:300; color:#fff; padding:0;
+    }
+    .stu-latest-bottom {
+        font-size:20px; line-height:1.28; color:#92999f; font-weight:400;
+        overflow:hidden; white-space:normal;
+    }
+    .stu-latest-purpose, .stu-latest-for-date {
+        display:block; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+    }
+    .stu-latest-for-date { color:#92999f; font-size:18px; line-height:1.25; margin-top:2px; }
+    .stu-latest-bottom b {
+        display:block; font-size:27px; line-height:1.15; color:#080808;
+        font-weight:500; margin-bottom:5px;
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    .stu-latest-empty { color:#8b949e; font-size:14px; padding:10px 0; }
+    @media(max-width:640px) {
+      .stu-latest-wrap { padding-left:34px; padding-right:16px; }
+      .stu-latest-group { flex:0 0 auto; min-width:166px; max-width:none; }
+      .stu-latest-gradebox { height:103px; }
+      .stu-latest-grade { font-size:76px; }
+      .stu-latest-bottom { font-size:20px; }
+      .stu-latest-bottom b { font-size:27px; }
+    }
     @media (max-width: 640px) {
         .head { padding: 10px; }
         .head h3 { font-size: 16px; }
@@ -4018,7 +4061,7 @@
         raw.forEach((st, i) => {
             html += `<div style="display:flex; gap:10px; align-items:center; margin-bottom:6px; border-bottom:1px solid #f1f5f9; padding-bottom:6px;">
                 <span style="font-weight:bold; width:25px; font-size:12px;">${i+1}.</span>
-                <input type="text" class="edit-inp" style="height:32px; font-size:13px;" value="${hEsc(st)}" onchange="renameStudentInClass('${jEsc(cls)}', ${i}, this.value)">
+                <input type="text" class="edit-inp" style="height:32px; font-size:13px;" value="${hEsc(st)}" onchange="renameStudentInClass('${jEsc(cls)}', '${jEsc(st)}', ${i}, this.value)">
                 <button class="tab-btn" style="background:#ef4444; color:white; border:none; padding:2px 8px; height:32px; font-size:12px;" onclick="deleteStudentFromClass('${jEsc(cls)}', ${i})">🗑️</button>
             </div>`;
         });
@@ -4069,13 +4112,79 @@
         document.getElementById('new-student-name').value = '';
         loadAdminStudentsList(); renderStudentReorderList(); render();
     };
-    window.renameStudentInClass = function(cls, idx, newName) {
-        newName = newName.trim();
+    window.renameStudentInClass = function(cls, oldName, displayIndex, newName) {
+        newName = String(newName || '').trim();
+        if (!newName || !oldName || newName === oldName) { loadAdminStudentsList(); return; }
         const sl = getStudentsListObj();
-        if (!sl[cls] || !sl[cls][idx]) return;
-        if (newName) sl[cls][idx] = newName;
+        if (!Array.isArray(sl[cls])) return;
+        // Ro'yxat tartiblangan ko'rinishda bo'lishi mumkin; aynan tanlangan eski ism nusxasini topamiz.
+        const visible = getOrderedRawStudentsRaw(cls);
+        const occurrence = visible.slice(0, displayIndex).filter(n => n === oldName).length;
+        const targetVisibleIndex = visible.findIndex((n, i) => n === oldName && visible.slice(0, i).filter(x => x === oldName).length === occurrence);
+        if (targetVisibleIndex < 0) { loadAdminStudentsList(); return; }
+        const rawOccurrence = visible.slice(0, targetVisibleIndex + 1).filter(n => n === oldName).length - 1;
+        let rawSeen = 0, rawIndex = -1;
+        for (let i=0;i<sl[cls].length;i++) if (sl[cls][i] === oldName) { if (rawSeen++ === rawOccurrence) { rawIndex=i; break; } }
+        if (rawIndex < 0) { loadAdminStudentsList(); return; }
+        if (sl[cls].includes(newName) && newName !== oldName) {
+            if (!confirm(`"${newName}" ismli o'quvchi mavjud. Baribir shu ismga o'zgartirasizmi?`)) { loadAdminStudentsList(); return; }
+        }
+        const oldNameCount = visible.filter(n => n === oldName).length;
+        const oldKey = oldNameCount > 1 ? `${oldName}__${occurrence}` : oldName;
+        sl[cls][rawIndex] = newName;
         saveStudentsListObj(sl);
-        loadAdminStudentsList(); renderStudentReorderList(); render();
+
+        // Baholar jadvalidagi o'quvchi kalitini almashtiramiz; baho qiymatlari va meta saqlanadi.
+        const newRaw = getOrderedRawStudentsRaw(cls);
+        const newNameCount = newRaw.filter(n => n === newName).length;
+        const newOccurrence = newRaw.slice(0, newRaw.indexOf(newName)).filter(n => n === newName).length;
+        const newKey = newNameCount > 1 ? `${newName}__${Math.max(0,newOccurrence)}` : newName;
+        const quartersAll = getQuarters();
+        getClassSubjectsRaw(cls).forEach(sub => {
+            quartersAll.forEach(q => {
+                const key = markKey(q.id, cls, sub.name);
+                const data = getMarksByKey(key) || {};
+                if (Object.prototype.hasOwnProperty.call(data, oldKey)) {
+                    const copy = {...data};
+                    if (!Object.prototype.hasOwnProperty.call(copy, newKey)) copy[newKey] = copy[oldKey];
+                    else copy[newKey] = {...(copy[newKey]||{}), ...(copy[oldKey]||{})};
+                    if (oldKey !== newKey) delete copy[oldKey];
+                    saveMarksObj(q.id, cls, sub.name, copy);
+                }
+            });
+            ['Imtihon','Natija','Annual'].forEach(type => {
+                const key = `marks_${type}_${cls}_${sub.name}`;
+                const data = getMarksByKey(key) || {};
+                if (Object.prototype.hasOwnProperty.call(data, oldKey)) {
+                    const copy = {...data};
+                    if (!Object.prototype.hasOwnProperty.call(copy,newKey)) copy[newKey] = copy[oldKey];
+                    if (oldKey !== newKey) delete copy[oldKey];
+                    copy.__ts = Date.now(); lsSet(key,copy); window.syncToFirebase(key,copy);
+                    if (window.__marksCache) window.__marksCache[key] = copy;
+                }
+            });
+        });
+        // Login, parol va fan biriktirishlarini saqlab, faqat ism kalitini yangilaymiz.
+        const accounts = getStudentAccounts();
+        if (accounts[cls] && accounts[cls][oldName]) {
+            const savedAccount = accounts[cls][oldName];
+            if (!accounts[cls][newName]) accounts[cls][newName] = savedAccount;
+            delete accounts[cls][oldName];
+            saveStudentAccounts(accounts);
+        }
+        // Tartib ro'yxatida ham ismni yangilash, joylashuvni saqlash.
+        const order = getStudentOrder(cls);
+        if (order) { let seen=0; const oi=order.findIndex(n => n===oldName && seen++===occurrence); if (oi>=0) { order[oi]=newName; saveStudentOrderArr(cls,order); } }
+        // Chorak uchun alohida o'quvchi tanlovlarida eski ismni almashtirish.
+        const qSettings = getQuarterSettings();
+        if (qSettings && qSettings.students && Array.isArray(qSettings.students[cls])) {
+            qSettings.students[cls] = qSettings.students[cls].map(n => n===oldName ? newName : n);
+            saveQuarterSettings(qSettings);
+        }
+        loadAdminStudentsList(); renderStudentReorderList();
+        if (document.getElementById('acc-class-select')?.value === cls) loadStudentAccountsList();
+        render(); if (loggedStudent && loggedStudent.cls === cls && loggedStudent.name === oldName) { loggedStudent.name = newName; renderStudentView(); }
+        showSaved();
     };
     window.deleteStudentFromClass = function(cls, idx) {
         const sl = getStudentsListObj();
@@ -4619,29 +4728,52 @@
         allMarks.sort((a,b) => (b.savedAt || 0) - (a.savedAt || 0));
         const recent = allMarks.slice(0,20);
         if (!recent.length) return `<section class="stu-latest-wrap"><div class="stu-latest-title">So'nggi baholar</div><div class="stu-latest-empty">Hozircha baholar qo'yilmagan.</div></section>`;
-        const today = isoOfDate(new Date());
-        const yesterdayDate = new Date(); yesterdayDate.setDate(yesterdayDate.getDate()-1);
-        const yesterday = isoOfDate(yesterdayDate);
-        let previousGroup = '';
-        const cards = recent.map(item => {
+        const todayIso = isoOfDate(new Date());
+        const yesterdayDate = new Date(); yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const yesterdayIso = isoOfDate(yesterdayDate);
+        const markDayKey = item => {
             const stamp = item.savedAt ? new Date(item.savedAt) : null;
-            const day = stamp && !isNaN(stamp.getTime()) ? isoOfDate(stamp) : '';
-            const group = day === today ? 'BUGUN' : day === yesterday ? 'KECHA' :
-                (stamp ? stamp.toLocaleDateString('uz-UZ',{day:'2-digit',month:'long'}) : 'Sana noma’lum');
-            const heading = group !== previousGroup ? `<div class="stu-latest-day">${hEsc(group)}</div>` : '';
-            previousGroup = group;
-            const posted = stamp && !isNaN(stamp.getTime())
-                ? stamp.toLocaleString('uz-UZ',{hour:'2-digit',minute:'2-digit'}) : 'Vaqti saqlanmagan';
-            const lessonDate = item.lessonDate ? `Dars sanasi: ${item.lessonDate}` : (stamp ? `Sana: ${stamp.toLocaleDateString('uz-UZ')}` : '');
-            return `<div class="stu-latest-group">${heading}<article class="stu-latest-card">
-                <div class="stu-latest-posted">${hEsc(posted)}</div>
-                <div class="stu-latest-gradebox" style="background:${gradeColorHex(item.value)}">
-                    <div class="stu-latest-grade">${hEsc(item.value)}</div>
-                </div>
-                <div class="stu-latest-bottom"><b>${hEsc(item.subject)}</b>
-                    ${hEsc(item.purpose)}<br>${hEsc(lessonDate)}<br>${hEsc(item.quarter)}
-                </div>
-            </article></div>`;
+            return stamp && !isNaN(stamp.getTime()) ? isoOfDate(stamp) :
+                (item.lessonDate && /^\d{4}-\d{2}-\d{2}$/.test(item.lessonDate) ? item.lessonDate : 'unknown');
+        };
+        const dayGroups = new Map();
+        recent.forEach(item => {
+            const dayIso = markDayKey(item);
+            if (!dayGroups.has(dayIso)) dayGroups.set(dayIso, []);
+            dayGroups.get(dayIso).push(item);
+        });
+        const cards = Array.from(dayGroups.entries()).map(([dayIso, dayItems]) => {
+            let dateText = 'SANA NOMALUM';
+            if (dayIso === todayIso) dateText = 'BUGUN';
+            else if (dayIso === yesterdayIso) dateText = 'KECHA';
+            else if (dayIso !== 'unknown') {
+                const d = new Date(dayIso + 'T00:00:00');
+                dateText = d.toLocaleDateString('uz-UZ',{day:'2-digit',month:'long'}).toUpperCase();
+            }
+            const dayCards = dayItems.map(item => {
+                const lessonDate = item.lessonDate && item.lessonDate !== 'Chorak yakuni'
+                    ? `${item.lessonDate} uchun` : (item.lessonDate === 'Chorak yakuni' ? 'Chorak yakuni uchun' : '');
+                const extraQuarter = item.quarter && item.quarter !== 'Yarim yillik' ? item.quarter : '';
+                const postedAt = Number(item.savedAt || 0);
+                const postedText = postedAt && !isNaN(postedAt)
+                    ? new Date(postedAt).toLocaleTimeString('uz-UZ',{hour:'2-digit',minute:'2-digit',hour12:false})
+                    : 'Vaqt saqlanmagan';
+                return `<article class="stu-latest-card">
+                    <div class="stu-latest-posted">${hEsc(postedText)}</div>
+                    <div class="stu-latest-gradebox" style="background:${gradeColorHex(item.value)}">
+                        <div class="stu-latest-grade">${hEsc(item.value)}</div>
+                    </div>
+                    <div class="stu-latest-bottom"><b>${hEsc(item.subject)}</b>
+                        <span class="stu-latest-purpose">${hEsc(item.purpose || '')}</span>
+                        ${lessonDate ? `<span class="stu-latest-for-date">${hEsc(lessonDate)}</span>` : ''}
+                        ${extraQuarter ? `<span class="stu-latest-for-date">${hEsc(extraQuarter)}</span>` : ''}
+                    </div>
+                </article>`;
+            }).join('');
+            return `<div class="stu-latest-group">
+                <div class="stu-latest-day">${hEsc(dateText)}</div>
+                <div class="stu-latest-day-cards">${dayCards}</div>
+            </div>`;
         }).join('');
         return `<section class="stu-latest-wrap">
             <div class="stu-latest-title">So'nggi baholar</div>
